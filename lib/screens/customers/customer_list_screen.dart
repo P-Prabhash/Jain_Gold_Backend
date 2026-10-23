@@ -10,6 +10,7 @@ import '../../models/customer.dart';
 import '../../providers/customer_provider.dart';
 import '../../services/api_service.dart';
 import '../../widgets/gold_badge.dart';
+import '../../widgets/responsive_layout.dart';
 import 'new_customer_screen.dart';
 import 'customer_profile_screen.dart';
 
@@ -108,12 +109,9 @@ class _CustomerListScreenState
   // ============================================================
 
   void _openNewCustomerModal() async {
-    final result = await showDialog<bool>(
+    final result = await showResponsiveDialog<bool>(
       context: context,
-      builder: (_) => const Dialog(
-        backgroundColor: Colors.transparent,
-        child: NewCustomerScreen(),
-      ),
+      child: const NewCustomerScreen(),
     );
 
     if (result == true && mounted) {

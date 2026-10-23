@@ -9,6 +9,7 @@ import '../../models/gold_item.dart';
 import '../../providers/gold_provider.dart';
 import '../../services/api_service.dart';
 import '../../widgets/gold_badge.dart';
+import '../../widgets/responsive_layout.dart';
 import 'add_gold_screen.dart';
 
 class GoldInventoryScreen extends StatefulWidget {
@@ -54,12 +55,9 @@ class _GoldInventoryScreenState
   // ============================================================
 
   Future<void> _openAddGoldModal() async {
-    final result = await showDialog<bool>(
+    final result = await showResponsiveDialog<bool>(
       context: context,
-      builder: (_) => const Dialog(
-        backgroundColor: Colors.transparent,
-        child: AddGoldScreen(),
-      ),
+      child: const AddGoldScreen(),
     );
 
     if (result == true && mounted) {

@@ -733,10 +733,10 @@ class _LedgerScreenState extends State<LedgerScreen> {
 
                         DataCell(
                           SizedBox(
-                            width: 180,
+                            width: 220,
                             child: Text(
-                              t.remarks ?? '-',
-                              maxLines: 2,
+                              _sanitizeRemark(t.remarks),
+                              maxLines: 3,
                               overflow:
                                   TextOverflow
                                       .ellipsis,
@@ -963,7 +963,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
                 ),
               ),
               child: Text(
-                t.remarks!,
+                _sanitizeRemark(t.remarks),
                 maxLines: 4,
                 overflow:
                     TextOverflow.ellipsis,
@@ -979,6 +979,15 @@ class _LedgerScreenState extends State<LedgerScreen> {
         ],
       ),
     );
+  }
+
+  String _sanitizeRemark(String? remark) {
+    if (remark == null || remark.trim().isEmpty) return '-';
+    return remark
+        .replaceAll('₹', 'Rs ')
+        .replaceAll('Rs. ', 'Rs ')
+        .replaceAll('Rs.', 'Rs ')
+        .replaceAll('\uFFFD', 'Rs ');
   }
 
   // ============================================================

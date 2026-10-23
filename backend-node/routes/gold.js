@@ -9,6 +9,7 @@ const { requirePermission } = require('../middleware/authMiddleware');
 router.get(['/list', '/list.php'], requirePermission('gold.view'), async (req, res) => {
   const customerId = parseInt(req.query.customer_id || '0', 10);
   const statusFilter = String(req.query.status || '').trim().toUpperCase();
+  const search = String(req.query.search || '').trim();
 
   try {
     const db = await getPool();
@@ -39,6 +40,12 @@ router.get(['/list', '/list.php'], requirePermission('gold.view'), async (req, r
     if (statusFilter) {
       sql += ` AND UPPER(g.status) = ?`;
       params.push(statusFilter);
+    }
+
+    if (search) {
+      sql += ` AND (g.item_name LIKE ? OR c.name LIKE ? OR c.customer_code LIKE ? OR c.mobile LIKE ? OR l.loan_no LIKE ? OR g.locker_no LIKE ?)`;
+      const term = `%${search}%`;
+      params.push(term, term, term, term, term, term);
     }
 
     sql += ` ORDER BY g.id DESC`;

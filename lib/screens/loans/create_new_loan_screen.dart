@@ -399,33 +399,30 @@ class _CreateNewLoanScreenState
               : isTablet
                   ? 850
                   : double.infinity,
+          height: isMobile ? MediaQuery.of(context).size.height : null,
           constraints: BoxConstraints(
-            maxHeight:
-                MediaQuery.of(context)
-                        .size
-                        .height *
-                    0.94,
+            maxHeight: isMobile
+                ? double.infinity
+                : MediaQuery.of(context).size.height * 0.94,
           ),
           margin: EdgeInsets.symmetric(
-            horizontal:
-                isMobile ? 8 : 20,
-            vertical:
-                isMobile ? 8 : 20,
+            horizontal: isMobile ? 0 : 20,
+            vertical: isMobile ? 0 : 20,
           ),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius:
-                BorderRadius.circular(
-              isMobile ? 12 : 18,
+            borderRadius: BorderRadius.circular(
+              isMobile ? 0 : 18,
             ),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black26,
-                blurRadius: 25,
-                offset:
-                    Offset(0, 12),
-              ),
-            ],
+            boxShadow: isMobile
+                ? null
+                : const [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 25,
+                      offset: Offset(0, 12),
+                    ),
+                  ],
           ),
           child: Column(
             children: [

@@ -956,32 +956,27 @@ class _CreateAdditionalLoanScreenState
                     : screenWidth - 20;
 
         return Container(
-          width: maxWidth,
-          constraints:
-              BoxConstraints(
-            maxHeight:
-                MediaQuery.of(context)
-                        .size
-                        .height *
-                    0.94,
+          width: isMobile ? double.infinity : maxWidth,
+          height: isMobile ? MediaQuery.of(context).size.height : null,
+          constraints: BoxConstraints(
+            maxHeight: isMobile
+                ? double.infinity
+                : MediaQuery.of(context).size.height * 0.94,
           ),
-          decoration:
-              BoxDecoration(
+          decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius:
-                BorderRadius.circular(
-              isMobile ? 12 : 16,
+            borderRadius: BorderRadius.circular(
+              isMobile ? 0 : 16,
             ),
-            boxShadow:
-                const [
-              BoxShadow(
-                color:
-                    Colors.black26,
-                blurRadius: 20,
-                offset:
-                    Offset(0, 10),
-              ),
-            ],
+            boxShadow: isMobile
+                ? null
+                : const [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 20,
+                      offset: Offset(0, 10),
+                    ),
+                  ],
           ),
           child: Column(
             mainAxisSize:

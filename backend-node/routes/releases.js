@@ -9,6 +9,7 @@ const { requirePermission } = require('../middleware/authMiddleware');
 router.get(['/list', '/list.php'], requirePermission('release.view'), async (req, res) => {
   const loanId = parseInt(req.query.loan_id || '0', 10);
   const customerId = parseInt(req.query.customer_id || '0', 10);
+  const search = String(req.query.search || '').trim();
 
   try {
     const db = await getPool();
@@ -30,6 +31,12 @@ router.get(['/list', '/list.php'], requirePermission('release.view'), async (req
     if (customerId > 0) {
       sql += ' AND r.customer_id = ?';
       params.push(customerId);
+    }
+
+    if (search) {
+      sql += ` AND (r.release_no LIKE ? OR l.loan_no LIKE ? OR c.name LIKE ? OR c.customer_code LIKE ? OR c.mobile LIKE ?)`;
+      const term = `%${search}%`;
+      params.push(term, term, term, term, term);
     }
 
     sql += ' ORDER BY r.id DESC';

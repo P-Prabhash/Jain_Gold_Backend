@@ -13,6 +13,7 @@ import '../../providers/loan_provider.dart';
 import '../../services/api_service.dart';
 import '../../widgets/a4_receipt_viewer.dart';
 import '../../widgets/gold_badge.dart';
+import '../../widgets/responsive_layout.dart';
 import '../payments/payment_screen.dart';
 import '../releases/partial_release_screen.dart';
 import 'close_loan_screen.dart';
@@ -38,12 +39,9 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
   }
 
   void _openPaymentModal() async {
-    final result = await showDialog<bool>(
+    final result = await showResponsiveDialog<bool>(
       context: context,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: PaymentScreen(preselectedLoanId: widget.loanId),
-      ),
+      child: PaymentScreen(preselectedLoanId: widget.loanId),
     );
     if (result == true && mounted) {
       context.read<LoanProvider>().fetchLoanDetails(widget.loanId);
@@ -51,12 +49,9 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
   }
 
   void _openPartialReleaseModal() async {
-    final result = await showDialog<bool>(
+    final result = await showResponsiveDialog<bool>(
       context: context,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: PartialReleaseScreen(preselectedLoanId: widget.loanId),
-      ),
+      child: PartialReleaseScreen(preselectedLoanId: widget.loanId),
     );
     if (result == true && mounted) {
       context.read<LoanProvider>().fetchLoanDetails(widget.loanId);
@@ -64,12 +59,9 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
   }
 
   void _openCloseLoanModal() async {
-    final result = await showDialog<bool>(
+    final result = await showResponsiveDialog<bool>(
       context: context,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: CloseLoanScreen(loanId: widget.loanId),
-      ),
+      child: CloseLoanScreen(loanId: widget.loanId),
     );
     if (result == true && mounted) {
       context.read<LoanProvider>().fetchLoanDetails(widget.loanId);
@@ -79,12 +71,9 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
   void _openAdditionalLoanModal() async {
     final loan = context.read<LoanProvider>().selectedLoan;
     if (loan == null) return;
-    final result = await showDialog<bool>(
+    final result = await showResponsiveDialog<bool>(
       context: context,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: CreateAdditionalLoanScreen(preselectedCustomerId: loan.customerId),
-      ),
+      child: CreateAdditionalLoanScreen(preselectedCustomerId: loan.customerId),
     );
     if (result == true && mounted) {
       context.read<LoanProvider>().fetchLoanDetails(widget.loanId);
@@ -95,9 +84,9 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
     try {
       final receipt = await ApiService.getReceipt(loanId: widget.loanId, type: 'LOAN');
       if (mounted) {
-        showDialog(
+        showResponsiveDialog(
           context: context,
-          builder: (_) => A4ReceiptViewer(receiptData: receipt.rawData),
+          child: A4ReceiptViewer(receiptData: receipt.rawData),
         );
       }
     } catch (e) {
@@ -120,6 +109,7 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
     final width = MediaQuery.of(context).size.width;
     final isDesktop = width >= AppConstants.desktopBreakpoint;
     final isTablet = width >= AppConstants.mobileBreakpoint && !isDesktop;
+    final isMobile = width < AppConstants.mobileBreakpoint;
 
     if (provider.isLoadingDetails || loan == null) {
       return Scaffold(
@@ -155,51 +145,7 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Top Action Bar
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.silverBorder, width: 0.8),
-              ),
-              child: Wrap(
-                spacing: 12,
-                runSpacing: 10,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  if (loan.isActive) ...[
-                    ElevatedButton.icon(
-                      onPressed: _openPaymentModal,
-                      icon: const Icon(Icons.payments, size: 16),
-                      label: const Text('Make Payment'),
-                      style: ElevatedButton.styleFrom(backgroundColor: AppTheme.goldPrimary),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: _openPartialReleaseModal,
-                      icon: const Icon(Icons.lock_open, size: 16),
-                      label: const Text('Partial Release'),
-                      style: ElevatedButton.styleFrom(backgroundColor: AppTheme.darkNavy, foregroundColor: Colors.white),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: _openCloseLoanModal,
-                      icon: const Icon(Icons.lock_clock, size: 16),
-                      label: const Text('Close / Settle Loan'),
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF065F46), foregroundColor: Colors.white),
-                    ),
-                  ],
-                  OutlinedButton.icon(
-                    onPressed: _openAdditionalLoanModal,
-                    icon: const Icon(Icons.add_card, size: 16),
-                    label: const Text('Additional Loan'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: _printLoanReceipt,
-                    icon: const Icon(Icons.receipt_long, size: 16),
-                    label: const Text('Print Receipt'),
-                  ),
-                ],
-              ),
-            ),
+            _buildTopActionBar(loan, isMobile),
             const SizedBox(height: 18),
 
             // 3-PANEL RESPONSIVE CARDS (Customer | Financial | Collateral)
@@ -226,9 +172,9 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
               const SizedBox(height: 16),
               _buildCollateralSummaryCard(collateral, totalPledgedWeight, remainingPledgedWeight),
             ] else ...[
-              _buildFinancialSummaryCard(loan, progress),
-              const SizedBox(height: 14),
               _buildCustomerCard(customer),
+              const SizedBox(height: 14),
+              _buildFinancialSummaryCard(loan, progress),
               const SizedBox(height: 14),
               _buildCollateralSummaryCard(collateral, totalPledgedWeight, remainingPledgedWeight),
             ],
@@ -282,6 +228,143 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
   }
 
   // Panel 1: Customer Card
+  Widget _buildTopActionBar(Loan loan, bool isMobile) {
+    if (isMobile) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppTheme.silverBorder, width: 0.8),
+        ),
+        child: Column(
+          children: [
+            if (loan.isActive) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _openPaymentModal,
+                      icon: const Icon(Icons.payments, size: 16),
+                      label: const Text('Make Payment', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.goldPrimary,
+                        foregroundColor: AppTheme.darkNavy,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        elevation: 1,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _openPartialReleaseModal,
+                      icon: const Icon(Icons.lock_open, size: 16),
+                      label: const Text('Partial Release', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.darkNavy,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        elevation: 1,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _openCloseLoanModal,
+                  icon: const Icon(Icons.lock_clock, size: 16),
+                  label: const Text('Close / Settle Loan', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF065F46),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    elevation: 1,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _openAdditionalLoanModal,
+                    icon: const Icon(Icons.add_card, size: 16),
+                    label: const Text('Additional Loan', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _printLoanReceipt,
+                    icon: const Icon(Icons.receipt_long, size: 16),
+                    label: const Text('Print Receipt', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.silverBorder, width: 0.8),
+      ),
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 10,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          if (loan.isActive) ...[
+            ElevatedButton.icon(
+              onPressed: _openPaymentModal,
+              icon: const Icon(Icons.payments, size: 16),
+              label: const Text('Make Payment'),
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.goldPrimary, foregroundColor: AppTheme.darkNavy),
+            ),
+            ElevatedButton.icon(
+              onPressed: _openPartialReleaseModal,
+              icon: const Icon(Icons.lock_open, size: 16),
+              label: const Text('Partial Release'),
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.darkNavy, foregroundColor: Colors.white),
+            ),
+            ElevatedButton.icon(
+              onPressed: _openCloseLoanModal,
+              icon: const Icon(Icons.lock_clock, size: 16),
+              label: const Text('Close / Settle Loan'),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF065F46), foregroundColor: Colors.white),
+            ),
+          ],
+          OutlinedButton.icon(
+            onPressed: _openAdditionalLoanModal,
+            icon: const Icon(Icons.add_card, size: 16),
+            label: const Text('Additional Loan'),
+          ),
+          OutlinedButton.icon(
+            onPressed: _printLoanReceipt,
+            icon: const Icon(Icons.receipt_long, size: 16),
+            label: const Text('Print Receipt'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCustomerCard(Customer? customer) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -496,39 +579,45 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
           if (collateral.isEmpty)
             const Text('No collateral items attached to this loan', style: TextStyle(color: AppTheme.silverDark, fontSize: 12))
           else
-            Table(
-              columnWidths: const {
-                0: FixedColumnWidth(56),
-                1: FlexColumnWidth(2),
-                2: FlexColumnWidth(1),
-                3: FlexColumnWidth(1),
-                4: FlexColumnWidth(1),
-              },
-              border: TableBorder.all(color: AppTheme.silverBorder, width: 0.5),
-              children: [
-                const TableRow(
-                  decoration: BoxDecoration(color: AppTheme.silverLight),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: 480,
+                child: Table(
+                  columnWidths: const {
+                    0: FixedColumnWidth(56),
+                    1: FixedColumnWidth(130),
+                    2: FixedColumnWidth(70),
+                    3: FixedColumnWidth(110),
+                    4: FixedColumnWidth(100),
+                  },
+                  border: TableBorder.all(color: AppTheme.silverBorder, width: 0.5),
                   children: [
-                    Padding(padding: EdgeInsets.all(8), child: Text('Photo', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                    Padding(padding: EdgeInsets.all(8), child: Text('Item Name', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                    Padding(padding: EdgeInsets.all(8), child: Text('Purity', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                    Padding(padding: EdgeInsets.all(8), child: Text('Pledged Weight', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                    Padding(padding: EdgeInsets.all(8), child: Text('Status', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                    const TableRow(
+                      decoration: BoxDecoration(color: AppTheme.silverLight),
+                      children: [
+                        Padding(padding: EdgeInsets.all(8), child: Text('Photo', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                        Padding(padding: EdgeInsets.all(8), child: Text('Item Name', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                        Padding(padding: EdgeInsets.all(8), child: Text('Purity', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                        Padding(padding: EdgeInsets.all(8), child: Text('Pledged Weight', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                        Padding(padding: EdgeInsets.all(8), child: Text('Status', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                      ],
+                    ),
+                    ...collateral.map((c) => TableRow(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: _buildItemThumbnail(c.photoUrl),
+                        ),
+                        Padding(padding: const EdgeInsets.all(8), child: Text(c.itemName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                        Padding(padding: const EdgeInsets.all(8), child: Text(c.purity, style: const TextStyle(fontSize: 12))),
+                        Padding(padding: const EdgeInsets.all(8), child: Text(AppConstants.formatWeight(c.pledgedWeight), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
+                        Padding(padding: const EdgeInsets.all(8), child: Align(alignment: Alignment.centerLeft, child: GoldBadge(status: c.collateralStatus, fontSize: 9))),
+                      ],
+                    )),
                   ],
                 ),
-                ...collateral.map((c) => TableRow(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: _buildItemThumbnail(c.photoUrl),
-                    ),
-                    Padding(padding: const EdgeInsets.all(8), child: Text(c.itemName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                    Padding(padding: const EdgeInsets.all(8), child: Text(c.purity, style: const TextStyle(fontSize: 12))),
-                    Padding(padding: const EdgeInsets.all(8), child: Text(AppConstants.formatWeight(c.pledgedWeight), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                    Padding(padding: const EdgeInsets.all(8), child: GoldBadge(status: c.collateralStatus, fontSize: 9)),
-                  ],
-                )),
-              ],
+              ),
             ),
         ],
       ),
@@ -691,7 +780,7 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
                 if (tx.createdBy != null && tx.createdBy!.isNotEmpty)
                   _txDetailRow('Recorded By', tx.createdBy!),
                 if (tx.remarks != null && tx.remarks!.isNotEmpty)
-                  _txDetailRow('Remarks / Notes', tx.remarks!),
+                  _txDetailRow('Remarks / Notes', _sanitizeRemark(tx.remarks!)),
               ],
             ),
           ),
@@ -704,6 +793,15 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
         );
       },
     );
+  }
+
+  String _sanitizeRemark(String? remark) {
+    if (remark == null || remark.trim().isEmpty) return '-';
+    return remark
+        .replaceAll('₹', 'Rs ')
+        .replaceAll('Rs. ', 'Rs ')
+        .replaceAll('Rs.', 'Rs ')
+        .replaceAll('\uFFFD', 'Rs ');
   }
 
   Widget _txDetailRow(String label, String value, {bool isHighlight = false}) {

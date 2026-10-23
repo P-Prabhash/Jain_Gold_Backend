@@ -458,31 +458,35 @@ class _ImagePickerWidgetState
       children: [
         Expanded(
           child: OutlinedButton.icon(
-            onPressed:
-                _isUploading
-                    ? null
-                    : _openCamera,
-            icon: const Icon(
-              Icons.camera_alt_outlined,
+            onPressed: _isUploading ? null : _openCamera,
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, 46),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
             ),
-            label:
-                const Text('Camera'),
+            icon: const Icon(Icons.camera_alt_outlined, size: 20),
+            label: const Text(
+              'Camera',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
         ),
-        const SizedBox(
-          width: 12,
-        ),
+        const SizedBox(width: 12),
         Expanded(
           child: OutlinedButton.icon(
-            onPressed:
-                _isUploading
-                    ? null
-                    : _openGallery,
-            icon: const Icon(
-              Icons.photo_library_outlined,
+            onPressed: _isUploading ? null : _openGallery,
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, 46),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
             ),
-            label:
-                const Text('Gallery'),
+            icon: const Icon(Icons.photo_library_outlined, size: 20),
+            label: const Text(
+              'Gallery',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
         ),
       ],

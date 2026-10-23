@@ -676,8 +676,10 @@ class _AddGoldScreenState extends State<AddGoldScreen> {
     return Center(
       child: Container(
         width: double.infinity,
+        height: isMobile ? MediaQuery.of(context).size.height : null,
         constraints: BoxConstraints(
           maxWidth: maxWidth,
+          maxHeight: isMobile ? double.infinity : MediaQuery.of(context).size.height * 0.94,
         ),
         margin: EdgeInsets.symmetric(
           horizontal: isMobile ? 0 : 12,

@@ -13,13 +13,13 @@ class ReleaseProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
-  Future<void> fetchReleases({int? loanId, int? customerId}) async {
+  Future<void> fetchReleases({int? loanId, int? customerId, String? search}) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      _releases = await ApiService.getReleases(loanId: loanId, customerId: customerId);
+      _releases = await ApiService.getReleases(loanId: loanId, customerId: customerId, search: search);
       _isLoading = false;
       notifyListeners();
     } catch (e) {

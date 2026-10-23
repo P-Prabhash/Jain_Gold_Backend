@@ -921,39 +921,28 @@ class ApiService {
   // PARTIAL RELEASES
   // ============================================================
 
-  static Future<List<PartialRelease>>
-      getReleases({
+  static Future<List<PartialRelease>> getReleases({
     int? loanId,
     int? customerId,
+    String? search,
   }) async {
-    final params =
-        <String, String>{};
+    final params = <String, String>{};
 
-    if (loanId != null &&
-        loanId > 0) {
-      params['loan_id'] =
-          loanId.toString();
+    if (loanId != null && loanId > 0) {
+      params['loan_id'] = loanId.toString();
     }
 
-    if (customerId != null &&
-        customerId > 0) {
-      params['customer_id'] =
-          customerId.toString();
+    if (customerId != null && customerId > 0) {
+      params['customer_id'] = customerId.toString();
     }
 
-    final res = await _get(
-      'releases/list.php',
-      params,
-    );
+    if (search != null && search.trim().isNotEmpty) {
+      params['search'] = search.trim();
+    }
 
-    final list =
-        res['data'] as List? ?? [];
-
-    return list
-        .map(
-          (r) => PartialRelease.fromJson(r),
-        )
-        .toList();
+    final res = await _get('releases/list.php', params);
+    final list = res['data'] as List? ?? [];
+    return list.map((r) => PartialRelease.fromJson(r)).toList();
   }
 
   static Future<Map<String, dynamic>>

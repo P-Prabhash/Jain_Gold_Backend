@@ -223,11 +223,11 @@ class _LoginScreenState extends State<LoginScreen> {
           const SizedBox(height: 8),
 
           Text(
-            'PAWN LOAN MANAGEMENT ERP',
+            'JAIN GOLD & PAWN SHOP',
             textAlign: TextAlign.center,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
+            style: GoogleFonts.cinzel(
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
               color: AppTheme.goldPrimary,
               letterSpacing: 1.4,
             ),

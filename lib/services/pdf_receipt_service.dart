@@ -192,7 +192,7 @@ class PdfReceiptService {
                   pw.CrossAxisAlignment.start,
               children: [
                 pw.Text(
-                  'GOLD & SILVER PAWN LOAN MANAGEMENT',
+                  'JAIN GOLD & PAWN SHOP',
                   style: const pw.TextStyle(
                     color: pdfGold,
                     fontSize: 13,

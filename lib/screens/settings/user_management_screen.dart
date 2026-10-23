@@ -1377,39 +1377,33 @@ class _UserManagementScreenState
     if (mobile) {
       return Column(
         children: [
+          // Row 1: Edit & Password Reset
           Row(
             children: [
               Expanded(
-                child:
-                    OutlinedButton.icon(
+                child: OutlinedButton.icon(
                   onPressed: () {
                     _showEditUserDialog(
                       context,
                       user,
                     );
                   },
-
-                  icon:
-                      const Icon(
-                    Icons
-                        .edit_outlined,
-                    size: 17,
+                  icon: const Icon(
+                    Icons.edit_outlined,
+                    size: 16,
                   ),
-
-                  label:
-                      const Text(
+                  label: const Text(
                     'EDIT',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
-
-              const SizedBox(
-                width: 7,
-              ),
-
+              const SizedBox(width: 8),
               Expanded(
-                child:
-                    OutlinedButton.icon(
+                child: OutlinedButton.icon(
                   onPressed: () {
                     _showResetPasswordDialog(
                       context,
@@ -1417,69 +1411,91 @@ class _UserManagementScreenState
                       userId,
                     );
                   },
-
-                  icon:
-                      const Icon(
-                    Icons
-                        .key_outlined,
-                    size: 17,
+                  icon: const Icon(
+                    Icons.key_outlined,
+                    size: 16,
                   ),
-
-                  label:
-                      const Text(
-                    'PASSWORD',
+                  label: const Text(
+                    'PASSWORD RESET',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 8),
 
-          const SizedBox(
-            height: 7,
-          ),
-
+          // Row 2: Delete User (Full Width)
           SizedBox(
-            width:
-                double.infinity,
-
-            child:
-                ElevatedButton.icon(
-              onPressed:
-                  isAdmin
-                      ? null
-                      : () {
-                          _openPermissions(
-                            context,
-                            provider,
-                            userId,
-                          );
-                        },
-
-              icon:
-                  const Icon(
-                Icons
-                    .shield_outlined,
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: isAdmin
+                  ? null
+                  : () {
+                      _showDeleteUserDialog(
+                        context,
+                        provider,
+                        user,
+                        userId,
+                      );
+                    },
+              icon: const Icon(
+                Icons.delete_outline,
                 size: 18,
               ),
-
-              label:
-                  Text(
-                isAdmin
-                    ? 'ADMIN — FULL ACCESS'
-                    : 'MANAGE PERMISSIONS',
+              label: Text(
+                isAdmin ? 'MAIN ADMIN (PROTECTED)' : 'DELETE USER',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: isAdmin ? Colors.grey : AppTheme.statusDanger,
+                side: BorderSide(
+                  color: isAdmin
+                      ? AppTheme.silverBorder
+                      : AppTheme.statusDanger.withValues(alpha: 0.6),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 11),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
 
-              style:
-                  ElevatedButton
-                      .styleFrom(
-                backgroundColor:
-                    AppTheme
-                        .darkNavy,
-
-                foregroundColor:
-                    Colors.white,
+          // Row 3: Manage Permissions / Admin Status (Full Width)
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: isAdmin
+                  ? null
+                  : () {
+                      _openPermissions(
+                        context,
+                        provider,
+                        userId,
+                      );
+                    },
+              icon: const Icon(
+                Icons.shield_outlined,
+                size: 18,
+              ),
+              label: Text(
+                isAdmin ? 'ADMIN — FULL ACCESS' : 'MANAGE PERMISSIONS',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.darkNavy,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 11),
               ),
             ),
           ),
@@ -1782,9 +1798,12 @@ class _UserManagementScreenState
       role = availableRoles.first;
     }
 
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     showDialog<void>(
       context: context,
       barrierDismissible: false,
+      useSafeArea: !isMobile,
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
@@ -1801,6 +1820,8 @@ class _UserManagementScreenState
                   ];
 
             return AlertDialog(
+              insetPadding: isMobile ? EdgeInsets.zero : const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(isMobile ? 0 : 16)),
               title: Row(
                 children: [
                   Container(
@@ -3431,25 +3452,19 @@ class _PermissionDialogState
             .width;
 
     final bool isMobile = width < 650;
-    final double inset = isMobile ? 10 : 28;
+    final double inset = isMobile ? 0 : 28;
     final double availableWidth = width - (inset * 2);
-    final double dialogWidth = availableWidth < 950
-        ? availableWidth
-        : 950;
+    final double dialogWidth = isMobile ? width : (availableWidth < 950 ? availableWidth : 950);
 
     return Dialog(
       insetPadding: EdgeInsets.all(inset),
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(isMobile ? 0 : 20),
       ),
       child: SizedBox(
         width: dialogWidth,
-        height: isMobile
-            ? MediaQuery.of(context).size.height * 0.90
-            : width < 1100
-                ? 680
-                : 720,
+        height: isMobile ? MediaQuery.of(context).size.height : (width < 1100 ? 680 : 720),
         child: Column(
           children: [
             _header(

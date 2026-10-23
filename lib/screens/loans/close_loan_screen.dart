@@ -122,22 +122,29 @@ class _CloseLoanScreenState extends State<CloseLoanScreen> {
       return const Center(child: CircularProgressIndicator(color: AppTheme.goldPrimary));
     }
 
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return Container(
-      constraints: const BoxConstraints(maxWidth: 720),
+      width: double.infinity,
+      height: isMobile ? MediaQuery.of(context).size.height : null,
+      constraints: BoxConstraints(
+        maxWidth: isMobile ? double.infinity : 720,
+        maxHeight: isMobile ? double.infinity : MediaQuery.of(context).size.height * 0.94,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 20, offset: Offset(0, 10))],
+        borderRadius: BorderRadius.circular(isMobile ? 0 : 16),
+        boxShadow: isMobile ? null : const [BoxShadow(color: Colors.black26, blurRadius: 20, offset: Offset(0, 10))],
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: isMobile ? MainAxisSize.max : MainAxisSize.min,
         children: [
           // Header
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            decoration: const BoxDecoration(
+            padding: EdgeInsets.symmetric(horizontal: isMobile ? 14 : 24, vertical: isMobile ? 12 : 16),
+            decoration: BoxDecoration(
               color: AppTheme.darkNavy,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(isMobile ? 0 : 16)),
             ),
             child: Row(
               children: [

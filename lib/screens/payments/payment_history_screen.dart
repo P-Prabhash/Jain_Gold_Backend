@@ -10,6 +10,7 @@ import '../../providers/payment_provider.dart';
 import '../../services/api_service.dart';
 import '../../services/pdf_receipt_service.dart';
 import '../../widgets/gold_badge.dart';
+import '../../widgets/responsive_layout.dart';
 import 'payment_screen.dart';
 
 class PaymentHistoryScreen extends StatefulWidget {
@@ -53,12 +54,9 @@ class _PaymentHistoryScreenState
   // ============================================================
 
   void _openNewPaymentModal() async {
-    final result = await showDialog<bool>(
+    final result = await showResponsiveDialog<bool>(
       context: context,
-      builder: (_) => const Dialog(
-        backgroundColor: Colors.transparent,
-        child: PaymentScreen(),
-      ),
+      child: const PaymentScreen(),
     );
 
     if (result == true && mounted) {

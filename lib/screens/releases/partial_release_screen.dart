@@ -800,28 +800,25 @@ class _PartialReleaseScreenState
       color: Colors.transparent,
       child: Center(
         child: Container(
-          width: dialogWidth,
-          constraints:
-              BoxConstraints(
-            maxHeight:
-                MediaQuery.of(context)
-                        .size
-                        .height -
-                    24,
+          width: isMobile ? double.infinity : dialogWidth,
+          height: isMobile ? MediaQuery.of(context).size.height : null,
+          constraints: BoxConstraints(
+            maxHeight: isMobile
+                ? double.infinity
+                : MediaQuery.of(context).size.height - 24,
           ),
-          decoration:
-              BoxDecoration(
+          decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius:
-                BorderRadius.circular(16),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black26,
-                blurRadius: 20,
-                offset:
-                    Offset(0, 10),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(isMobile ? 0 : 16),
+            boxShadow: isMobile
+                ? null
+                : const [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 20,
+                      offset: Offset(0, 10),
+                    ),
+                  ],
           ),
           child: Column(
             mainAxisSize:

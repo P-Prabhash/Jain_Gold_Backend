@@ -13,6 +13,7 @@ import '../../models/transaction.dart';
 import '../../providers/customer_provider.dart';
 import '../../services/api_service.dart';
 import '../../widgets/gold_badge.dart';
+import '../../widgets/responsive_layout.dart';
 import '../gold/add_gold_screen.dart';
 import '../loans/create_new_loan_screen.dart';
 import '../loans/loan_details_screen.dart';
@@ -50,12 +51,9 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> with Sing
   }
 
   void _openAddGoldModal() async {
-    final result = await showDialog<bool>(
+    final result = await showResponsiveDialog<bool>(
       context: context,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: AddGoldScreen(customerId: widget.customerId),
-      ),
+      child: AddGoldScreen(customerId: widget.customerId),
     );
 
     if (result == true && mounted) {
@@ -64,12 +62,9 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> with Sing
   }
 
   void _openNewLoanModal() async {
-    final result = await showDialog<bool>(
+    final result = await showResponsiveDialog<bool>(
       context: context,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: CreateNewLoanScreen(preselectedCustomerId: widget.customerId),
-      ),
+      child: CreateNewLoanScreen(preselectedCustomerId: widget.customerId),
     );
 
     if (result == true && mounted) {
@@ -364,8 +359,189 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> with Sing
     required bool isMobile,
     required bool isTablet,
   }) {
+    if (isMobile) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppTheme.silverBorder, width: 0.8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'INTERCONNECTED FINANCIAL & COLLATERAL SUMMARY',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                color: AppTheme.darkNavy,
+              ),
+            ),
+            const SizedBox(height: 10),
+            // Row 1: Total Gold Items & Total Gold Weight
+            Row(
+              children: [
+                Expanded(
+                  child: _MetricChip(
+                    label: 'Total Gold Items',
+                    value: '${summary.totalGoldItems} items',
+                    icon: Icons.diamond_outlined,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _MetricChip(
+                    label: 'Total Gold Weight',
+                    value: AppConstants.formatWeight(summary.totalGoldWeight),
+                    icon: Icons.scale,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Row 2: Pledged Weight & Released Weight
+            Row(
+              children: [
+                Expanded(
+                  child: _MetricChip(
+                    label: 'Pledged Weight',
+                    value: AppConstants.formatWeight(summary.pledgedGoldWeight),
+                    icon: Icons.lock_outline,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _MetricChip(
+                    label: 'Released Weight',
+                    value: AppConstants.formatWeight(summary.releasedGoldWeight),
+                    icon: Icons.lock_open_outlined,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Row 3: Total Loans & Total Loan Amount
+            Row(
+              children: [
+                Expanded(
+                  child: _MetricChip(
+                    label: 'Total Loans',
+                    value: '${summary.totalLoans} (${summary.activeLoans} Active)',
+                    icon: Icons.account_balance,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _MetricChip(
+                    label: 'Total Loan Amount',
+                    value: AppConstants.formatCurrency(summary.totalLoanAmount),
+                    icon: Icons.monetization_on,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Row 4: Total Paid & Total Interest
+            Row(
+              children: [
+                Expanded(
+                  child: _MetricChip(
+                    label: 'Total Paid',
+                    value: AppConstants.formatCurrency(summary.totalPaid),
+                    icon: Icons.payments_outlined,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _MetricChip(
+                    label: 'Total Interest',
+                    value: AppConstants.formatCurrency(summary.totalInterest),
+                    icon: Icons.percent,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Row 5: Total Outstanding (Full Width)
+            SizedBox(
+              width: double.infinity,
+              child: _MetricChip(
+                label: 'Total Outstanding',
+                value: AppConstants.formatCurrency(summary.totalOutstanding),
+                icon: Icons.warning_amber_rounded,
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Bottom: Closed Loans Summary (Full Width)
+            SizedBox(
+              width: double.infinity,
+              child: _MetricChip(
+                label: 'Closed Loans',
+                value: '${summary.closedLoans} Closed Loans Settled',
+                icon: Icons.check_circle_outline,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final items = [
+      _MetricChip(
+        label: 'Total Gold Items',
+        value: '${summary.totalGoldItems} items',
+        icon: Icons.diamond_outlined,
+      ),
+      _MetricChip(
+        label: 'Total Gold Weight',
+        value: AppConstants.formatWeight(summary.totalGoldWeight),
+        icon: Icons.scale,
+      ),
+      _MetricChip(
+        label: 'Pledged Weight',
+        value: AppConstants.formatWeight(summary.pledgedGoldWeight),
+        icon: Icons.lock_outline,
+      ),
+      _MetricChip(
+        label: 'Released Weight',
+        value: AppConstants.formatWeight(summary.releasedGoldWeight),
+        icon: Icons.lock_open_outlined,
+      ),
+      _MetricChip(
+        label: 'Total Loans',
+        value: '${summary.totalLoans} (${summary.activeLoans} Active)',
+        icon: Icons.account_balance,
+      ),
+      _MetricChip(
+        label: 'Total Loan Amount',
+        value: AppConstants.formatCurrency(summary.totalLoanAmount),
+        icon: Icons.monetization_on,
+      ),
+      _MetricChip(
+        label: 'Total Paid',
+        value: AppConstants.formatCurrency(summary.totalPaid),
+        icon: Icons.payments_outlined,
+      ),
+      _MetricChip(
+        label: 'Total Interest',
+        value: AppConstants.formatCurrency(summary.totalInterest),
+        icon: Icons.percent,
+      ),
+      _MetricChip(
+        label: 'Total Outstanding',
+        value: AppConstants.formatCurrency(summary.totalOutstanding),
+        icon: Icons.warning_amber_rounded,
+      ),
+      _MetricChip(
+        label: 'Closed Loans',
+        value: '${summary.closedLoans} Closed',
+        icon: Icons.check_circle_outline,
+      ),
+    ];
+
     return Container(
-      padding: EdgeInsets.all(isMobile ? 12 : 16),
+      padding: EdgeInsets.all(isTablet ? 14 : 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -377,64 +553,38 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> with Sing
           Text(
             'INTERCONNECTED FINANCIAL & COLLATERAL SUMMARY',
             style: GoogleFonts.plusJakartaSans(
-              fontSize: isMobile ? 10 : 12,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
               color: AppTheme.darkNavy,
             ),
           ),
           const SizedBox(height: 10),
-          Wrap(
-            spacing: isMobile ? 7 : 12,
-            runSpacing: isMobile ? 7 : 12,
-            children: [
-              _metricChip(
-                'Total Gold Items',
-                '${summary.totalGoldItems} items',
-                Icons.diamond_outlined,
-              ),
-              _metricChip(
-                'Total Gold Weight',
-                AppConstants.formatWeight(summary.totalGoldWeight),
-                Icons.scale,
-                isGold: true,
-              ),
-              _metricChip(
-                'Pledged Weight',
-                AppConstants.formatWeight(summary.pledgedGoldWeight),
-                Icons.lock_outline,
-              ),
-              _metricChip(
-                'Released Weight',
-                AppConstants.formatWeight(summary.releasedGoldWeight),
-                Icons.lock_open_outlined,
-              ),
-              _metricChip(
-                'Total Loans',
-                '${summary.totalLoans} (${summary.activeLoans} Active, ${summary.closedLoans} Closed)',
-                Icons.account_balance,
-              ),
-              _metricChip(
-                'Total Loan Amount',
-                AppConstants.formatCurrency(summary.totalLoanAmount),
-                Icons.monetization_on,
-              ),
-              _metricChip(
-                'Total Paid',
-                AppConstants.formatCurrency(summary.totalPaid),
-                Icons.payments_outlined,
-              ),
-              _metricChip(
-                'Total Interest',
-                AppConstants.formatCurrency(summary.totalInterest),
-                Icons.percent,
-              ),
-              _metricChip(
-                'Total Outstanding',
-                AppConstants.formatCurrency(summary.totalOutstanding),
-                Icons.warning_amber_rounded,
-                isGold: true,
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              int columns = 5;
+              if (constraints.maxWidth < 650) {
+                columns = 2;
+              } else if (constraints.maxWidth < 1000) {
+                columns = 3;
+              } else if (constraints.maxWidth < 1350) {
+                columns = 4;
+              } else {
+                columns = 5;
+              }
+
+              final itemWidth = (constraints.maxWidth - ((columns - 1) * 12)) / columns;
+
+              return Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: items.map((chip) {
+                  return SizedBox(
+                    width: itemWidth,
+                    child: chip,
+                  );
+                }).toList(),
+              );
+            },
           ),
         ],
       ),
@@ -502,33 +652,6 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> with Sing
     final width = MediaQuery.of(context).size.width;
     if (width < 1200) return 520;
     return 480;
-  }
-
-
-  Widget _metricChip(String label, String value, IconData icon, {bool isGold = false}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-      decoration: BoxDecoration(
-        color: isGold ? AppTheme.goldLight.withValues(alpha: 0.4) : AppTheme.silverLight,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: isGold ? AppTheme.goldPrimary : AppTheme.silverBorder, width: 0.8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: isGold ? AppTheme.goldDark : AppTheme.darkNavy),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(label, style: const TextStyle(fontSize: 10, color: AppTheme.silverDark, fontWeight: FontWeight.w600)),
-              Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isGold ? AppTheme.darkNavy : AppTheme.darkNavy)),
-            ],
-          ),
-        ],
-      ),
-    );
   }
 
   // TAB 1: Gold Items
@@ -1112,6 +1235,93 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> with Sing
           ),
         );
       },
+    );
+  }
+}
+
+class _MetricChip extends StatefulWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+
+  const _MetricChip({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  State<_MetricChip> createState() => _MetricChipState();
+}
+
+class _MetricChipState extends State<_MetricChip> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: _isHovered ? AppTheme.goldPrimary : AppTheme.silverBorder,
+            width: _isHovered ? 1.2 : 0.8,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: _isHovered
+                  ? AppTheme.goldPrimary.withValues(alpha: 0.15)
+                  : Colors.black.withValues(alpha: 0.02),
+              blurRadius: _isHovered ? 8 : 4,
+              offset: Offset(0, _isHovered ? 2 : 1),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(
+              widget.icon,
+              size: 16,
+              color: _isHovered ? AppTheme.goldDark : AppTheme.darkNavy,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: _isHovered ? AppTheme.goldDark : AppTheme.silverDark,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    widget.value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.darkNavy,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

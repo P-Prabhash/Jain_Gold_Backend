@@ -291,7 +291,7 @@ async function handleCreateLoan(req, res, defaultLoanType = 'NEW_LOAN') {
       }
     }
 
-    await logTransaction(conn, customerId, loanId, 'LOAN_CREATED', principalAmount, totalPledgedWeight, loanNo, `Pawn Loan ${loanNo} created for ₹${principalAmount}`, 'STAFF');
+    await logTransaction(conn, customerId, loanId, 'LOAN_CREATED', principalAmount, totalPledgedWeight, loanNo, `Pawn Loan ${loanNo} created for Rs ${principalAmount}`, 'STAFF');
 
     const receiptNo = 'RCP-NEW-' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Math.random().toString(36).substring(2,8).toUpperCase();
     const receiptData = {
@@ -489,14 +489,14 @@ router.post(['/create_additional', '/create_additional.php'], requirePermission(
     );
 
     // 6. CENTRAL TRANSACTION AUDIT LEDGER
-    const desc = `Additional disbursement of ₹${additionalAmount.toFixed(2)} under loan ${loan.loan_no}. Combined principal: ₹${newPrincipal.toFixed(2)}`;
+    const desc = `Additional disbursement of Rs ${additionalAmount.toFixed(2)} under loan ${loan.loan_no}. Combined principal: Rs ${newPrincipal.toFixed(2)}`;
     await logTransaction(conn, customerId, loanId, 'ADDITIONAL_LOAN', additionalAmount, totalPledgedWeight, loan.loan_no, desc, 'STAFF');
 
     // 7. RECORD IN LOAN STATUS HISTORY
     await conn.query(
       `INSERT INTO loan_status_history (loan_id, old_status, new_status, reason, changed_by)
        VALUES (?, ?, ?, ?, 'STAFF')`,
-      [loanId, loan.status, loan.status, `Additional disbursement of ₹${additionalAmount.toFixed(2)}`, 'STAFF']
+      [loanId, loan.status, loan.status, `Additional disbursement of Rs ${additionalAmount.toFixed(2)}`, 'STAFF']
     );
 
     // 8. RECEIPT GENERATION FOR ADDITIONAL DISBURSEMENT
@@ -623,7 +623,7 @@ router.post(['/close', '/close.php'], requirePermission('loan.close'), async (re
     let newManualInterest = existingManualInterest;
     if (manualFinalInterest > 0) {
       newManualInterest += manualFinalInterest;
-      await logTransaction(conn, customerId, loanId, 'FINAL_MANUAL_INTEREST', manualFinalInterest, 0, loan.loan_no, `Manual Final Interest of ₹${manualFinalInterest.toFixed(2)} applied`, 'STAFF');
+      await logTransaction(conn, customerId, loanId, 'FINAL_MANUAL_INTEREST', manualFinalInterest, 0, loan.loan_no, `Manual Final Interest of Rs ${manualFinalInterest.toFixed(2)} applied`, 'STAFF');
       await conn.query(
         `INSERT INTO interest_records (loan_id, period_start, period_end, monthly_rate, interest_amount, is_manual, remarks)
          VALUES (?, CURRENT_DATE(), CURRENT_DATE(), 0.00, ?, 1, 'Manual Final Settlement Interest')`,
@@ -642,7 +642,7 @@ router.post(['/close', '/close.php'], requirePermission('loan.close'), async (re
       if (paymentAmount > currentOutstanding + 0.01) {
         await conn.rollback();
         conn.release();
-        return res.status(422).json({ success: false, message: `Payment amount (₹${paymentAmount}) cannot exceed outstanding balance (₹${currentOutstanding})` });
+        return res.status(422).json({ success: false, message: `Payment amount (Rs ${paymentAmount}) cannot exceed outstanding balance (Rs ${currentOutstanding})` });
       }
 
       newTotalPaid = currentTotalPaid + paymentAmount;
@@ -670,7 +670,7 @@ router.post(['/close', '/close.php'], requirePermission('loan.close'), async (re
       );
 
       const txType = (newRemainingBalance <= 0) ? 'FULL_PAYMENT' : 'PARTIAL_PAYMENT';
-      await logTransaction(conn, customerId, loanId, txType, paymentAmount, 0, receiptNo, `Settlement payment received: ₹${paymentAmount}. Remaining: ₹${newRemainingBalance}`, 'STAFF');
+      await logTransaction(conn, customerId, loanId, txType, paymentAmount, 0, receiptNo, `Settlement payment received: Rs ${paymentAmount}. Remaining: Rs ${newRemainingBalance}`, 'STAFF');
     }
 
     let isClosed = false;

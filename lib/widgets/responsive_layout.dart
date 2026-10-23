@@ -7,9 +7,43 @@ import 'package:provider/provider.dart';
 import '../config/constants.dart';
 import '../config/theme.dart';
 import '../providers/auth_provider.dart';
+import '../providers/customer_provider.dart';
 import '../providers/dashboard_provider.dart';
+import '../providers/gold_provider.dart';
+import '../providers/loan_provider.dart';
+import '../providers/payment_provider.dart';
+import '../providers/release_provider.dart';
+import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../screens/auth/splash_screen.dart';
+
+Future<T?> showResponsiveDialog<T>({
+  required BuildContext context,
+  required Widget child,
+  bool barrierDismissible = true,
+}) async {
+  final isMobile = MediaQuery.of(context).size.width < 600;
+
+  if (isMobile) {
+    return await showDialog<T>(
+      context: context,
+      barrierDismissible: barrierDismissible,
+      useSafeArea: false,
+      builder: (_) => Dialog.fullscreen(child: child),
+    );
+  }
+
+  return await showDialog<T>(
+    context: context,
+    barrierDismissible: barrierDismissible,
+    builder: (_) => Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      child: child,
+    ),
+  );
+}
 
 class ResponsiveLayout extends StatefulWidget {
   final int selectedIndex;
@@ -288,6 +322,42 @@ class _ResponsiveLayoutState
     );
   }
 
+  void _triggerGlobalSearch(String query) {
+    final clean = query.trim();
+
+    try {
+      context.read<CustomerProvider>().fetchCustomers(clean.isEmpty ? null : clean);
+    } catch (_) {}
+
+    try {
+      context.read<LoanProvider>().fetchLoans(search: clean.isEmpty ? null : clean);
+    } catch (_) {}
+
+    try {
+      context.read<GoldProvider>().fetchGoldItems(search: clean.isEmpty ? null : clean);
+    } catch (_) {}
+
+    try {
+      context.read<PaymentProvider>().fetchPayments(search: clean.isEmpty ? null : clean);
+    } catch (_) {}
+
+    try {
+      context.read<ReleaseProvider>().fetchReleases(search: clean.isEmpty ? null : clean);
+    } catch (_) {}
+
+    try {
+      context.read<UserProvider>().fetchUsers(search: clean.isEmpty ? null : clean);
+    } catch (_) {}
+
+    if (widget.selectedIndex == 0 && clean.isNotEmpty) {
+      final isLoanQuery = clean.toUpperCase().startsWith('PL-') ||
+          clean.toUpperCase().startsWith('LCK-') ||
+          clean.toUpperCase().startsWith('EX-') ||
+          clean.toUpperCase().startsWith('RCP-');
+      widget.onIndexChanged(isLoanQuery ? 2 : 1);
+    }
+  }
+
   void _handleNavigation(
     BuildContext context,
     int index,
@@ -471,20 +541,21 @@ class _ResponsiveLayoutState
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'GOLD PAWN ERP',
+                              'JAIN GOLD & PAWN',
                               style: GoogleFonts.cinzel(
                                 color: AppTheme.goldPrimary,
                                 fontWeight: FontWeight.w900,
-                                fontSize: 13.5,
+                                fontSize: 13.0,
                                 letterSpacing: 0.8,
                               ),
                             ),
                             const SizedBox(height: 2),
                             const Text(
-                              'Enterprise Edition',
+                              'Jain Gold & Pawn Shop',
                               style: TextStyle(
                                 color: Color(0xFF94A3B8),
                                 fontSize: 11,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],
@@ -699,39 +770,32 @@ class _ResponsiveLayoutState
                             ),
                           ),
                           child: TextField(
-                            controller:
-                                _globalSearchCtrl,
-                            decoration:
-                                const InputDecoration(
-                              hintText:
-                                  'Search customer, loan no, mobile...',
-                              prefixIcon:
-                                  Icon(
+                            controller: _globalSearchCtrl,
+                            decoration: InputDecoration(
+                              hintText: 'Search customer, loan no, mobile...',
+                              prefixIcon: const Icon(
                                 Icons.search,
                                 size: 18,
-                                color: AppTheme
-                                    .silverDark,
+                                color: AppTheme.silverDark,
                               ),
-                              border:
-                                  InputBorder
-                                      .none,
-                              contentPadding:
-                                  EdgeInsets
-                                      .symmetric(
+                              suffixIcon: _globalSearchCtrl.text.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(Icons.clear, size: 18, color: AppTheme.silverDark),
+                                      onPressed: () {
+                                        _globalSearchCtrl.clear();
+                                        _triggerGlobalSearch('');
+                                        setState(() {});
+                                      },
+                                    )
+                                  : null,
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(
                                 vertical: 8,
                               ),
                             ),
-                            onSubmitted:
-                                (value) {
-                              if (value
-                                  .trim()
-                                  .isNotEmpty) {
-                                // Customers
-                                widget
-                                    .onIndexChanged(
-                                  1,
-                                );
-                              }
+                            onChanged: (value) {
+                              _triggerGlobalSearch(value);
+                              setState(() {});
                             },
                           ),
                         ),
@@ -805,59 +869,53 @@ class _ResponsiveLayoutState
   Widget _buildProfileBadge(
     BuildContext context,
   ) {
+    final authProvider = context.watch<AuthProvider>();
+    final user = authProvider.currentUser;
+
+    final String role = ((user?['role']?.toString().trim().isNotEmpty == true)
+        ? user!['role'].toString().trim()
+        : 'ADMIN').toUpperCase();
+
+    final String badgeLetter = role.isNotEmpty ? role[0] : 'A';
+
     return Container(
-      padding:
-          const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 6,
+      padding: const EdgeInsets.symmetric(
+        horizontal: 14,
+        vertical: 7,
       ),
       decoration: BoxDecoration(
         color: AppTheme.darkNavy,
-        borderRadius:
-            BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppTheme.goldPrimary.withValues(alpha: 0.40),
+          width: 1,
+        ),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          const CircleAvatar(
+          CircleAvatar(
             radius: 12,
-            backgroundColor:
-                AppTheme.goldPrimary,
-            child: Icon(
-              Icons.person,
-              size: 16,
-              color:
-                  AppTheme.darkNavy,
+            backgroundColor: AppTheme.goldPrimary,
+            child: Text(
+              badgeLetter,
+              style: const TextStyle(
+                color: AppTheme.darkNavy,
+                fontWeight: FontWeight.w900,
+                fontSize: 12,
+                height: 1.0,
+              ),
             ),
           ),
           const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-            mainAxisSize:
-                MainAxisSize.min,
-            children: [
-              Text(
-                context
-                        .watch<AuthProvider>()
-                        .currentUser?[
-                            'full_name'] ??
-                    'Admin',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight:
-                      FontWeight.bold,
-                ),
-              ),
-              const Text(
-                'Main Branch',
-                style: TextStyle(
-                  color:
-                      AppTheme.goldPrimary,
-                  fontSize: 9,
-                ),
-              ),
-            ],
+          Text(
+            role,
+            style: const TextStyle(
+              color: AppTheme.goldPrimary,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.8,
+            ),
           ),
         ],
       ),
@@ -1061,18 +1119,12 @@ class _ResponsiveLayoutState
             // ==============================================================
 
             DrawerHeader(
-              decoration:
-                  const BoxDecoration(
-                color:
-                    AppTheme.darkNavy,
+              decoration: const BoxDecoration(
+                color: AppTheme.darkNavy,
               ),
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment
-                        .start,
-                mainAxisAlignment:
-                    MainAxisAlignment
-                        .center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Text(
                     '🕉️',
@@ -1081,26 +1133,19 @@ class _ResponsiveLayoutState
                       height: 1.0,
                     ),
                   ),
-                  const SizedBox(
-                    height: 8,
-                  ),
+                  const SizedBox(height: 8),
                   Text(
-                    'GOLD & SILVER PAWN ERP',
-                    style:
-                        GoogleFonts.cinzel(
-                      color:
-                          AppTheme
-                              .goldPrimary,
-                      fontWeight:
-                          FontWeight.bold,
+                    'JAIN GOLD & PAWN SHOP',
+                    style: GoogleFonts.cinzel(
+                      color: AppTheme.goldPrimary,
+                      fontWeight: FontWeight.bold,
                       fontSize: 14,
                     ),
                   ),
                   const Text(
-                    'Enterprise Management System',
+                    'Pawn Loan & Gold Financing Management System',
                     style: TextStyle(
-                      color:
-                          Colors.white70,
+                      color: Colors.white70,
                       fontSize: 11,
                     ),
                   ),
@@ -1276,71 +1321,45 @@ class _ResponsiveLayoutState
         .watch<AuthProvider>()
         .currentUser;
 
+    final String role = ((user?['role']?.toString().trim().isNotEmpty == true)
+        ? user!['role'].toString().trim()
+        : 'ADMIN').toUpperCase();
+
+    final String badgeLetter = role.isNotEmpty ? role[0] : 'A';
+
     return Container(
-      margin:
-          const EdgeInsets.all(12),
-      padding:
-          const EdgeInsets.all(12),
+      margin: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color:
-            AppTheme.silverLight,
-        borderRadius:
-            BorderRadius.circular(10),
+        color: AppTheme.silverLight,
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color:
-              AppTheme.silverBorder,
+          color: AppTheme.silverBorder,
         ),
       ),
       child: Row(
         children: [
-          const CircleAvatar(
-            radius: 22,
-            backgroundColor:
-                AppTheme.goldPrimary,
-            child: Icon(
-              Icons.person,
-              color:
-                  AppTheme.darkNavy,
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: AppTheme.goldPrimary,
+            child: Text(
+              badgeLetter,
+              style: const TextStyle(
+                color: AppTheme.darkNavy,
+                fontWeight: FontWeight.w900,
+                fontSize: 18,
+                height: 1.0,
+              ),
             ),
           ),
-          const SizedBox(
-            width: 10,
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                Text(
-                  user?['full_name'] ??
-                      'Admin',
-                  overflow:
-                      TextOverflow.ellipsis,
-                  style:
-                      const TextStyle(
-                    fontWeight:
-                        FontWeight.bold,
-                    color:
-                        AppTheme.darkNavy,
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(
-                  height: 3,
-                ),
-                Text(
-                  user?['role'] ??
-                      'ADMIN',
-                  style:
-                      const TextStyle(
-                    color:
-                        AppTheme.goldDark,
-                    fontSize: 10,
-                    fontWeight:
-                        FontWeight.w700,
-                  ),
-                ),
-              ],
+          const SizedBox(width: 12),
+          Text(
+            role,
+            style: const TextStyle(
+              color: AppTheme.darkNavy,
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.8,
             ),
           ),
         ],

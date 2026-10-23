@@ -77,30 +77,35 @@ class _NewCustomerScreenState extends State<NewCustomerScreen> {
 
         return Container(
           width: double.infinity,
+          height: isMobile ? MediaQuery.of(context).size.height : null,
           constraints: BoxConstraints(
             maxWidth: isMobile
                 ? double.infinity
                 : isTablet
                     ? 760
                     : 900,
-            maxHeight: MediaQuery.of(context).size.height * 0.94,
+            maxHeight: isMobile
+                ? double.infinity
+                : MediaQuery.of(context).size.height * 0.94,
           ),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(isMobile ? 12 : 16),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black26,
-                blurRadius: 20,
-                offset: Offset(0, 10),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(isMobile ? 0 : 16),
+            boxShadow: isMobile
+                ? null
+                : const [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 20,
+                      offset: Offset(0, 10),
+                    ),
+                  ],
           ),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: isMobile ? MainAxisSize.max : MainAxisSize.min,
             children: [
               _buildHeader(isMobile),
-              Flexible(
+              Expanded(
                 child: SingleChildScrollView(
                   keyboardDismissBehavior:
                       ScrollViewKeyboardDismissBehavior.onDrag,
@@ -400,7 +405,7 @@ class _NewCustomerScreenState extends State<NewCustomerScreen> {
       decoration: BoxDecoration(
         color: AppTheme.darkNavy,
         borderRadius: BorderRadius.vertical(
-          top: Radius.circular(isMobile ? 12 : 16),
+          top: Radius.circular(isMobile ? 0 : 16),
         ),
       ),
       child: Row(

@@ -6,6 +6,7 @@ import '../../config/theme.dart';
 import '../../models/loan.dart';
 import '../../services/api_service.dart';
 import '../../widgets/a4_receipt_viewer.dart';
+import '../../widgets/responsive_layout.dart';
 
 class ReceiptViewScreen extends StatefulWidget {
   const ReceiptViewScreen({super.key});
@@ -129,9 +130,9 @@ class _ReceiptViewScreenState extends State<ReceiptViewScreen> {
   }
 
   void _openReceiptViewer(Map<String, dynamic> data) {
-    showDialog(
+    showResponsiveDialog(
       context: context,
-      builder: (_) => A4ReceiptViewer(receiptData: data),
+      child: A4ReceiptViewer(receiptData: data),
     );
   }
 

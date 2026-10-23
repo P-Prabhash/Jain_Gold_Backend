@@ -1,6 +1,7 @@
 // lib/screens/dashboard/dashboard_screen.dart
 
 
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -609,69 +610,26 @@ Widget _buildPremiumHeader(
 
 
         Container(
-
-
-
-          padding:
-
-          const EdgeInsets.all(12),
-
-
-
-
-
-          decoration:
-
-          BoxDecoration(
-
-
-
-            color:
-
-            AppTheme.goldPrimary
-
-                .withValues(alpha: 0.18),
-
-
-
-            shape:
-
-            BoxShape.circle,
-
-
-
+          width: 52,
+          height: 52,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppTheme.goldPrimary.withValues(alpha: 0.18),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: AppTheme.goldPrimary,
+              width: 1.5,
+            ),
           ),
-
-
-
-
-
-          child:
-
-          const Icon(
-
-
-
-            Icons.account_balance,
-
-
-
-            color:
-
-            AppTheme.goldPrimary,
-
-
-
-            size:
-
-            30,
-
-
-
+          child: const Text(
+            'ॐ',
+            style: TextStyle(
+              color: AppTheme.goldPrimary,
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              height: 1.0,
+            ),
           ),
-
-
-
         ),
 
 
@@ -715,39 +673,27 @@ Widget _buildPremiumHeader(
 
               Text(
 
-
-
-                "GOLD PAWN ERP",
-
-
+                "JAIN GOLD & PAWN SHOP",
 
                 style:
 
-                GoogleFonts.plusJakartaSans(
-
-
+                GoogleFonts.cinzel(
 
                   color:
 
                   AppTheme.goldPrimary,
 
-
-
                   fontSize:
 
-                  mobile ? 18 : 24,
-
-
+                  mobile ? 18 : 22,
 
                   fontWeight:
 
-                  FontWeight.w800,
+                  FontWeight.w900,
 
-
+                  letterSpacing: 0.8,
 
                 ),
-
-
 
               ),
 
@@ -1166,248 +1112,80 @@ Widget _buildKpiSection(
 
     children:[
 
-
-
-
-
-      _dashboardCard(
-
+      _DashboardCard(
         title:"CUSTOMERS",
-
-        value:
-
-        summary.totalCustomers.toString(),
-
+        value: summary.totalCustomers.toString(),
         subtitle:"Registered",
-
-        icon:
-
-        Icons.people,
+        icon: Icons.people,
         onTap: () => widget.onNavigate(1),
-
       ),
 
-
-
-
-
-
-
-      _dashboardCard(
-
+      _DashboardCard(
         title:"GOLD ITEMS",
-
-        value:
-
-        summary.totalGoldItems.toString(),
-
-        subtitle:
-
-        AppConstants.formatWeight(
-
-          summary.totalGoldWeight,
-
-        ),
-
-        icon:
-
-        Icons.diamond,
-
-        gold:true,
+        value: summary.totalGoldItems.toString(),
+        subtitle: AppConstants.formatWeight(summary.totalGoldWeight),
+        icon: Icons.diamond,
         onTap: () => widget.onNavigate(4),
-
       ),
 
-
-
-
-
-
-
-      _dashboardCard(
-
+      _DashboardCard(
         title:"TOTAL LOAN",
-
-        value:
-
-        AppConstants.formatCurrency(
-
-          summary.totalGivenLoan,
-
-        ),
-
+        value: AppConstants.formatCurrency(summary.totalGivenLoan),
         subtitle:"Principal",
-
-        icon:
-
-        Icons.account_balance_wallet,
-
-        gold:true,
+        icon: Icons.account_balance_wallet,
         onTap: () => widget.onNavigate(2),
-
       ),
 
-
-
-
-
-
-
-      _dashboardCard(
-
+      _DashboardCard(
         title:"OUTSTANDING",
-
-        value:
-
-        AppConstants.formatCurrency(
-
-          summary.totalOutstanding,
-
-        ),
-
+        value: AppConstants.formatCurrency(summary.totalOutstanding),
         subtitle:"Active Balance",
-
-        icon:
-
-        Icons.warning,
-
-        gold:true,
+        icon: Icons.warning,
         onTap: () => widget.onNavigate(2),
-
       ),
 
-
-
-
-
-
-
-      _dashboardCard(
-
+      _DashboardCard(
         title:"COLLECTION",
-
-        value:
-
-        AppConstants.formatCurrency(
-
-          summary.totalCollection,
-
-        ),
-
+        value: AppConstants.formatCurrency(summary.totalCollection),
         subtitle:"Received",
-
-        icon:
-
-        Icons.payments,
+        icon: Icons.payments,
         onTap: () => widget.onNavigate(3),
-
       ),
 
-
-
-
-
-
-
-      _dashboardCard(
-
+      _DashboardCard(
         title:"PARTIAL",
-
-        value:
-
-        AppConstants.formatCurrency(
-
-          summary.totalPartial,
-
-        ),
-
-        subtitle:
-
-        "${summary.totalPartialCount} Payments",
-
-        icon:
-
-        Icons.pie_chart,
+        value: AppConstants.formatCurrency(summary.totalPartial),
+        subtitle: "${summary.totalPartialCount} Payments",
+        icon: Icons.pie_chart,
         onTap: () => widget.onNavigate(3),
-
       ),
 
-
-
-
-
-
-
-      _dashboardCard(
-
+      _DashboardCard(
         title:"TODAY LOANS",
-
-        value:
-
-        summary.todayGivenLoanCount.toString(),
-
+        value: summary.todayGivenLoanCount.toString(),
         subtitle:"Created Today",
-
-        icon:
-
-        Icons.today,
+        icon: Icons.today,
         onTap: () => widget.onNavigate(2),
-
       ),
 
-
-
-
-
-
-
-      _dashboardCard(
-
+      _DashboardCard(
         title:"CLOSED",
-
-        value:
-
-        summary.totalClosedLoans.toString(),
-
+        value: summary.totalClosedLoans.toString(),
         subtitle:"Settled",
-
-        icon:
-
-        Icons.check_circle,
+        icon: Icons.check_circle,
         onTap: () => widget.onNavigate(2),
-
       ),
 
-
-
-
-
-
-
-      _dashboardCard(
-
+      _DashboardCard(
         title:"RELEASE",
-
-        value:
-
-        summary.totalReleases.toString(),
-
+        value: summary.totalReleases.toString(),
         subtitle:"Gold Released",
-
-        icon:
-
-        Icons.lock_open,
+        icon: Icons.lock_open,
         onTap: () => widget.onNavigate(5),
-
       ),
-
-
-
 
     ],
 
-
-
   );
 
 
@@ -1424,135 +1202,6 @@ Widget _buildKpiSection(
 
 
 
-
-// ============================================================
-// KPI CARD
-// ============================================================
-
-
-Widget _dashboardCard({
-  required String title,
-  required String value,
-  required String subtitle,
-  required IconData icon,
-  bool gold = false,
-  VoidCallback? onTap,
-}) {
-  return Material(
-    color: Colors.transparent,
-    borderRadius: BorderRadius.circular(16),
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: gold
-                ? [
-                    const Color(0xffFFF4C2),
-                    Colors.white,
-                  ]
-                : [
-                    Colors.white,
-                    const Color(0xffF5F5F5),
-                  ],
-          ),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: gold
-                ? AppTheme.goldPrimary
-                : AppTheme.silverBorder,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: .08),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  icon,
-                  size: 22,
-                  color: gold
-                      ? AppTheme.goldDark
-                      : AppTheme.darkNavy,
-                ),
-                const Spacer(),
-                if (onTap != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: gold
-                          ? AppTheme.goldPrimary.withValues(alpha: 0.18)
-                          : AppTheme.darkNavy.withValues(alpha: 0.07),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      'VIEW',
-                      style: TextStyle(
-                        fontSize: 8,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
-                        color: AppTheme.darkNavy,
-                      ),
-                    ),
-                  ),
-                if (gold) ...[
-                  const SizedBox(width: 5),
-                  const Icon(
-                    Icons.workspace_premium,
-                    size: 16,
-                    color: Color(0xffD4AF37),
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w800,
-                color: Colors.black,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.darkNavy,
-              ),
-            ),
-            Text(
-              subtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 9,
-                color: Colors.black54,
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-}
 
 // ============================================================
 // QUICK ACTIONS
@@ -1899,15 +1548,10 @@ Widget _buildQuickActions(
 
 
 
-            final width =
-
-            (constraints.maxWidth -
-
-                ((columns-1)*10))
-
-                /
-
-                columns;
+            final width = math.max(
+              80.0,
+              (constraints.maxWidth - ((columns - 1) * 10)) / columns,
+            );
 
 
 
@@ -1927,7 +1571,7 @@ Widget _buildQuickActions(
 
               child:
 
-              _quickButton(action),
+              _QuickActionButton(action: action),
 
 
 
@@ -1948,255 +1592,6 @@ Widget _buildQuickActions(
 
 
       },
-
-
-
-    ),
-
-
-
-  );
-
-
-
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Widget _quickButton(
-
-    _QuickAction action
-
-){
-
-
-
-  return InkWell(
-
-
-
-    onTap:
-
-    action.onTap,
-
-
-
-    borderRadius:
-
-    BorderRadius.circular(14),
-
-
-
-
-
-    child:
-
-    Container(
-
-
-
-      height:
-
-      70,
-
-
-
-
-
-      decoration:
-
-      BoxDecoration(
-
-
-
-        gradient:
-
-        action.primary
-
-            ?
-
-       const LinearGradient(
-
-          colors:[
-
-            AppTheme.goldPrimary,
-
-         Color(0xffF7E7A9),
-
-          ],
-
-        )
-
-            :
-
-        const LinearGradient(
-
-          colors:[
-
-            Colors.white,
-
-            Color(0xffF1F1F1),
-
-          ],
-
-        ),
-
-
-
-
-
-        borderRadius:
-
-        BorderRadius.circular(14),
-
-
-
-
-
-        border:
-
-        Border.all(
-
-          color:
-
-          AppTheme.silverBorder,
-
-        ),
-
-
-
-      ),
-
-
-
-
-
-
-
-      child:
-
-      Column(
-
-
-
-        mainAxisAlignment:
-
-        MainAxisAlignment.center,
-
-
-
-        children:[
-
-
-
-
-
-          Icon(
-
-
-
-            action.icon,
-
-
-
-            size:
-
-            25,
-
-
-
-            color:
-
-            Colors.black,
-
-
-
-          ),
-
-
-
-
-
-          const SizedBox(
-
-            height:6,
-
-          ),
-
-
-
-
-
-          Text(
-
-
-
-            action.label,
-
-
-
-            textAlign:
-
-            TextAlign.center,
-
-
-
-            maxLines:
-
-            2,
-
-
-
-            overflow:
-
-            TextOverflow.ellipsis,
-
-
-
-            style:
-
-            const TextStyle(
-
-
-
-              fontSize:
-
-              10,
-
-
-
-              fontWeight:
-
-              FontWeight.bold,
-
-
-
-            ),
-
-
-
-          ),
-
-
-
-
-
-        ],
-
-
-
-      ),
 
 
 
@@ -2992,5 +2387,212 @@ class _QuickAction {
 
 
 
+}
+
+class _QuickActionButton extends StatefulWidget {
+  final _QuickAction action;
+
+  const _QuickActionButton({required this.action});
+
+  @override
+  State<_QuickActionButton> createState() => _QuickActionButtonState();
+}
+
+class _QuickActionButtonState extends State<_QuickActionButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        height: 70,
+        transform: Matrix4.translationValues(0, _isHovered ? -2 : 0, 0),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: _isHovered ? AppTheme.goldPrimary : AppTheme.silverBorder,
+            width: _isHovered ? 1.5 : 1.0,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: _isHovered
+                  ? AppTheme.goldPrimary.withValues(alpha: 0.18)
+                  : Colors.black.withValues(alpha: 0.03),
+              blurRadius: _isHovered ? 12 : 6,
+              offset: Offset(0, _isHovered ? 4 : 2),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: widget.action.onTap,
+            borderRadius: BorderRadius.circular(14),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  widget.action.icon,
+                  size: 22,
+                  color: _isHovered ? AppTheme.goldDark : AppTheme.darkNavy,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  widget.action.label,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: _isHovered ? AppTheme.goldDark : AppTheme.darkNavy,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// DASHBOARD CARD
+// ============================================================
+
+class _DashboardCard extends StatefulWidget {
+  final String title;
+  final String value;
+  final String subtitle;
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  const _DashboardCard({
+    required this.title,
+    required this.value,
+    required this.subtitle,
+    required this.icon,
+    this.onTap,
+  });
+
+  @override
+  State<_DashboardCard> createState() => _DashboardCardState();
+}
+
+class _DashboardCardState extends State<_DashboardCard> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        transform: Matrix4.translationValues(0, _isHovered ? -2 : 0, 0),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: _isHovered ? AppTheme.goldPrimary : AppTheme.silverBorder,
+            width: _isHovered ? 1.5 : 1.0,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: _isHovered
+                  ? AppTheme.goldPrimary.withValues(alpha: 0.18)
+                  : Colors.black.withValues(alpha: 0.03),
+              blurRadius: _isHovered ? 12 : 6,
+              offset: Offset(0, _isHovered ? 4 : 2),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: widget.onTap,
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        widget.icon,
+                        size: 22,
+                        color: _isHovered ? AppTheme.goldDark : AppTheme.darkNavy,
+                      ),
+                      const Spacer(),
+                      if (widget.onTap != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _isHovered
+                                ? AppTheme.goldPrimary.withValues(alpha: 0.25)
+                                : AppTheme.darkNavy.withValues(alpha: 0.07),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'VIEW',
+                            style: TextStyle(
+                              fontSize: 8,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                              color: AppTheme.darkNavy,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    widget.value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    widget.title,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: _isHovered ? AppTheme.goldDark : AppTheme.darkNavy,
+                    ),
+                  ),
+                  Text(
+                    widget.subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 9,
+                      color: Colors.black54,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
     

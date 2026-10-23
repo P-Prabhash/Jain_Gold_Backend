@@ -9,11 +9,12 @@ const { requirePermission } = require('../middleware/authMiddleware');
 router.get(['/list', '/list.php'], requirePermission('payment.view'), async (req, res) => {
   const loanId = parseInt(req.query.loan_id || '0', 10);
   const customerId = parseInt(req.query.customer_id || '0', 10);
+  const search = String(req.query.search || '').trim();
 
   try {
     const db = await getPool();
     let sql = `
-      SELECT p.*, l.loan_no, c.name AS customer_name, c.customer_code
+      SELECT p.*, l.loan_no, c.name AS customer_name, c.customer_code, c.mobile
       FROM payments p
       JOIN loans l ON p.loan_id = l.id
       JOIN customers c ON p.customer_id = c.id
@@ -29,6 +30,12 @@ router.get(['/list', '/list.php'], requirePermission('payment.view'), async (req
     if (customerId > 0) {
       sql += ` AND p.customer_id = ?`;
       params.push(customerId);
+    }
+
+    if (search) {
+      sql += ` AND (p.receipt_no LIKE ? OR l.loan_no LIKE ? OR c.name LIKE ? OR c.customer_code LIKE ? OR c.mobile LIKE ?)`;
+      const term = `%${search}%`;
+      params.push(term, term, term, term, term);
     }
 
     sql += ` ORDER BY p.id DESC`;
@@ -94,7 +101,7 @@ router.post(['/create', '/create.php'], requirePermission('payment.create'), asy
     if (principalPayment > currentRemaining + 0.01) {
       await conn.rollback();
       conn.release();
-      return res.status(422).json({ success: false, message: `Principal payment amount (₹${principalPayment}) cannot exceed remaining principal balance (₹${currentRemaining}).` });
+      return res.status(422).json({ success: false, message: `Principal payment amount (Rs ${principalPayment}) cannot exceed remaining principal balance (Rs ${currentRemaining}).` });
     }
 
     const newTotalPaid = currentTotalPaid + principalPayment;
@@ -220,7 +227,7 @@ router.post(['/create', '/create.php'], requirePermission('payment.create'), asy
 
     // Central Transaction
     const code = 'TXN-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
-    const txRemarks = `Principal Payment: ₹${principalPayment.toFixed(2)}, Manual Interest: ₹${manualInterest.toFixed(2)}, Total Received: ₹${totalAmountReceived.toFixed(2)}`;
+    const txRemarks = `Principal Payment: Rs ${principalPayment.toFixed(2)}, Manual Interest: Rs ${manualInterest.toFixed(2)}, Total Received: Rs ${totalAmountReceived.toFixed(2)}`;
 
     await conn.query(
       `INSERT INTO loan_transactions (transaction_code, customer_id, loan_id, transaction_type, amount, weight, reference_id, date, time, created_by, remarks)

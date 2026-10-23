@@ -680,13 +680,14 @@ class A4ReceiptViewer extends StatelessWidget {
           CrossAxisAlignment.start,
       children: [
         Text(
-          'GOLD & SILVER PAWN MANAGEMENT',
+          'JAIN GOLD & PAWN SHOP',
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: GoogleFonts.plusJakartaSans(
+          style: GoogleFonts.cinzel(
             color: AppTheme.goldPrimary,
-            fontSize: mobile ? 13 : 15,
-            fontWeight: FontWeight.bold,
+            fontSize: mobile ? 14 : 16,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.8,
           ),
         ),
 

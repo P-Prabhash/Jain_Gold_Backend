@@ -346,111 +346,19 @@ class _MainScreenState extends State<MainScreen> {
         // ================================================================
 
         if (action == 'new_customer') {
-          showDialog(
-            context: context,
-            builder: (_) {
-              return const Dialog(
-                child: NewCustomerScreen(),
-              );
-            },
-          );
-        }
-
-        // ================================================================
-        // NEW LOAN
-        // ================================================================
-
-        else if (action == 'new_loan') {
-          showDialog(
-            context: context,
-            builder: (_) {
-              return const Dialog(
-                child: CreateNewLoanScreen(),
-              );
-            },
-          );
-        }
-
-        // ================================================================
-        // ADDITIONAL LOAN
-        // ================================================================
-
-        else if (
-            action == 'additional_loan') {
-          showDialog(
-            context: context,
-            builder: (_) {
-              return const Dialog(
-                child:
-                    CreateAdditionalLoanScreen(),
-              );
-            },
-          );
-        }
-
-        // ================================================================
-        // NEW PAYMENT
-        // ================================================================
-
-        else if (action == 'new_payment') {
-          showDialog(
-            context: context,
-            builder: (_) {
-              return const Dialog(
-                child: PaymentScreen(),
-              );
-            },
-          );
-        }
-
-        // ================================================================
-        // PARTIAL RELEASE
-        // ================================================================
-
-        else if (
-            action == 'partial_release') {
-          showDialog(
-            context: context,
-            builder: (_) {
-              return const Dialog(
-                child:
-                    PartialReleaseScreen(),
-              );
-            },
-          );
-        }
-
-        // ================================================================
-        // CLOSE LOAN
-        // ================================================================
-
-        else if (
-            action == 'close_loan' &&
-            initialParams
-                .containsKey('loan_id')) {
-
-          final loanId =
-              initialParams['loan_id'];
-
-          showDialog(
-            context: context,
-            builder: (_) {
-              return Dialog(
-                child: CloseLoanScreen(
-                  loanId: loanId,
-                ),
-              );
-            },
-          );
-        }
-
-        // ================================================================
-        // USER MANAGEMENT
-        // ================================================================
-
-        else if (
-            action == 'user_management') {
-
+          showResponsiveDialog(context: context, child: const NewCustomerScreen());
+        } else if (action == 'new_loan') {
+          showResponsiveDialog(context: context, child: const CreateNewLoanScreen());
+        } else if (action == 'additional_loan') {
+          showResponsiveDialog(context: context, child: const CreateAdditionalLoanScreen());
+        } else if (action == 'new_payment') {
+          showResponsiveDialog(context: context, child: const PaymentScreen());
+        } else if (action == 'partial_release') {
+          showResponsiveDialog(context: context, child: const PartialReleaseScreen());
+        } else if (action == 'close_loan' && initialParams.containsKey('loan_id')) {
+          final loanId = initialParams['loan_id'];
+          showResponsiveDialog(context: context, child: CloseLoanScreen(loanId: loanId));
+        } else if (action == 'user_management') {
           setState(() {
             _currentTabIndex = 9;
           });

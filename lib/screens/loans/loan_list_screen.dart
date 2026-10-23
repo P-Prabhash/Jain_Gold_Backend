@@ -10,6 +10,7 @@ import '../../providers/loan_provider.dart';
 import '../../services/api_service.dart';
 import '../../widgets/a4_receipt_viewer.dart';
 import '../../widgets/gold_badge.dart';
+import '../../widgets/responsive_layout.dart';
 
 import 'create_new_loan_screen.dart';
 import 'create_existing_loan_screen.dart';
@@ -209,26 +210,14 @@ class _LoanListScreenState
   // ============================================================
 
   Future<void> _openNewLoanModal() async {
-    final result = await showDialog<bool>(
+    final result = await showResponsiveDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (_) {
-        return const Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding:
-               EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 20,
-          ),
-          child:  CreateNewLoanScreen(),
-        );
-      },
+      child: const CreateNewLoanScreen(),
     );
 
     if (result == true && mounted) {
-      context
-          .read<LoanProvider>()
-          .fetchLoans();
+      context.read<LoanProvider>().fetchLoans();
     }
   }
 
@@ -237,27 +226,14 @@ class _LoanListScreenState
   // ============================================================
 
   Future<void> _openExistingLoanModal() async {
-    final result = await showDialog<bool>(
+    final result = await showResponsiveDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (_) {
-        return const Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding:
-               EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 20,
-          ),
-          child:
-               CreateExistingLoanScreen(),
-        );
-      },
+      child: const CreateExistingLoanScreen(),
     );
 
     if (result == true && mounted) {
-      context
-          .read<LoanProvider>()
-          .fetchLoans();
+      context.read<LoanProvider>().fetchLoans();
     }
   }
 
@@ -266,27 +242,14 @@ class _LoanListScreenState
   // ============================================================
 
   Future<void> _openAdditionalLoanModal() async {
-    final result = await showDialog<bool>(
+    final result = await showResponsiveDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (_) {
-        return const Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding:
-               EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 20,
-          ),
-          child:
-               CreateAdditionalLoanScreen(),
-        );
-      },
+      child: const CreateAdditionalLoanScreen(),
     );
 
     if (result == true && mounted) {
-      context
-          .read<LoanProvider>()
-          .fetchLoans();
+      context.read<LoanProvider>().fetchLoans();
     }
   }
 

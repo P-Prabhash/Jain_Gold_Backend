@@ -69,6 +69,9 @@ class GoldBadge extends StatelessWidget {
       ),
       child: Text(
         displayText,
+        softWrap: false,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           color: fg,
           fontSize: fontSize,

@@ -9,6 +9,7 @@ import '../../models/release.dart';
 import '../../providers/release_provider.dart';
 import '../../services/api_service.dart';
 import '../../widgets/a4_receipt_viewer.dart';
+import '../../widgets/responsive_layout.dart';
 import 'partial_release_screen.dart';
 
 class ReleaseHistoryScreen extends StatefulWidget {
@@ -53,14 +54,10 @@ class _ReleaseHistoryScreenState
   // ============================================================
 
   Future<void> _openPartialReleaseModal() async {
-    final result = await showDialog<bool>(
+    final result = await showResponsiveDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: EdgeInsets.all(12),
-        child: PartialReleaseScreen(),
-      ),
+      child: const PartialReleaseScreen(),
     );
 
     if (result == true && mounted) {

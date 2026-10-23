@@ -8,7 +8,7 @@ class AppConstants {
   // ============================================================
 
   static const String appName =
-      'Gold & Silver Pawn Management ERP';
+      'Jain Gold & Pawn Shop';
 
   static const String appVersion = '1.0.0';
 
