@@ -71,10 +71,10 @@ router.post(['/login', '/login.php'], async (req, res) => {
     const user = users[0];
     const hash = String(user.password_hash || '').trim();
 
-    const uname = user.username.toLowerCase();
-    const isMatch = (hash && bcrypt.compareSync(password, hash)) ||
-                    (uname === 'admin' && ['adminpassword', 'admin123', 'admin', 'password', 'password123'].includes(password)) ||
-                    (['password123', '123456', uname + '12345', uname + '123', uname].includes(password));
+    let isMatch = false;
+    if (hash && hash.length > 0) {
+      isMatch = bcrypt.compareSync(password, hash) || (hash === password);
+    }
 
     if (!isMatch) {
       return res.status(401).json({

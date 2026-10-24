@@ -459,7 +459,20 @@ router.post(['/reset_password', '/reset_password.php'], requirePermission('user.
   try {
     const db = await getPool();
     const hash = bcrypt.hashSync(newPassword, 10);
-    await db.query('UPDATE users SET password_hash = ? WHERE id = ?', [hash, userId]);
+    await db.query('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [hash, userId]);
+
+    // Record Audit Log without storing plaintext password
+    try {
+      const [u] = await db.query('SELECT username FROM users WHERE id = ?', [userId]);
+      const targetName = u.length > 0 ? u[0].username : `User #${userId}`;
+      await db.query(
+        `INSERT INTO audit_logs (user_id, username, action, module_name, reference_type, reference_id, description)
+         VALUES (?, ?, 'RESET_PASSWORD', 'User Management', 'USER', ?, ?)`,
+        [req.user.id, req.user.username, String(userId), `Password reset for user ${targetName}`]
+      );
+    } catch (e) {
+      // ignore
+    }
 
     return res.json({ success: true, message: 'Password reset successfully.' });
   } catch (err) {
