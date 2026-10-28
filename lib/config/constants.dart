@@ -17,7 +17,7 @@ class AppConstants {
   // ============================================================
 
   static const String defaultApiBaseUrl =
-      'http://localhost/gold_pawn_erp/backend';
+      'https://backedn-node.onrender.com';
 
   static const String baseUrl =
       defaultApiBaseUrl;

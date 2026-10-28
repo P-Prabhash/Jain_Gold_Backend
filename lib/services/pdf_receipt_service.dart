@@ -1931,7 +1931,7 @@ class PdfReceiptService {
   //
   // ApiService.baseUrl:
   //
-  // http://localhost/gold_pawn_erp/backend
+  // https://backedn-node.onrender.com
   //
   // PHP:
   //
@@ -1939,7 +1939,7 @@ class PdfReceiptService {
   //
   // MUST become:
   //
-  // http://localhost/gold_pawn_erp/backend/
+  // https://backedn-node.onrender.com/
   // uploads/customers/customer_xxx.jpg
   //
   // NOT:
@@ -2015,7 +2015,7 @@ class PdfReceiptService {
     //
     // becomes
     //
-    // http://localhost/gold_pawn_erp/backend/
+    // https://backedn-node.onrender.com/
     // uploads/gold/a.jpg
     // ==========================================================
 

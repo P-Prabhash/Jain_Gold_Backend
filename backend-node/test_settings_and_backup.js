@@ -8,11 +8,11 @@ async function testSettingsAndBackup() {
   console.log('Testing Settings & Backup Endpoints...');
 
   // 1. Get Settings
-  const getSettRes = await fetch('http://localhost/gold_pawn_erp/backend/settings/get.php', { headers }).then(r => r.json());
+  const getSettRes = await fetch('https://backedn-node.onrender.com/settings/get.php', { headers }).then(r => r.json());
   console.log('1. GET Settings:', getSettRes.success ? '✓ SUCCESS' : '✗ FAILED', getSettRes.data);
 
   // 2. Save Settings
-  const saveSettRes = await fetch('http://localhost/gold_pawn_erp/backend/settings/save.php', {
+  const saveSettRes = await fetch('https://backedn-node.onrender.com/settings/save.php', {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -25,19 +25,19 @@ async function testSettingsAndBackup() {
   console.log('2. SAVE Settings:', saveSettRes.message);
 
   // 3. Create Backup
-  const backupRes = await fetch('http://localhost/gold_pawn_erp/backend/backup/manual_backup.php', {
+  const backupRes = await fetch('https://backedn-node.onrender.com/backup/manual_backup.php', {
     method: 'POST',
     headers
   }).then(r => r.json());
   console.log('3. CREATE Backup:', backupRes.message, 'File:', backupRes.file_name || backupRes.data.file_name);
 
   // 4. List Backups
-  const listBackupRes = await fetch('http://localhost/gold_pawn_erp/backend/backup/list_backups.php', { headers }).then(r => r.json());
+  const listBackupRes = await fetch('https://backedn-node.onrender.com/backup/list_backups.php', { headers }).then(r => r.json());
   console.log('4. LIST Backups Count:', listBackupRes.count, 'Latest Backup:', listBackupRes.data[0].file_name);
 
   // 5. Restore Backup
   const latestFile = listBackupRes.data[0].file_name;
-  const restoreRes = await fetch('http://localhost/gold_pawn_erp/backend/backup/restore_backup.php', {
+  const restoreRes = await fetch('https://backedn-node.onrender.com/backup/restore_backup.php', {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -48,7 +48,7 @@ async function testSettingsAndBackup() {
   console.log('5. RESTORE Backup:', restoreRes.message);
 
   // 6. Test Admin Credential Validation
-  const adminCredRes = await fetch('http://localhost/gold_pawn_erp/backend/users/update_admin_credentials.php', {
+  const adminCredRes = await fetch('https://backedn-node.onrender.com/users/update_admin_credentials.php', {
     method: 'POST',
     headers,
     body: JSON.stringify({

@@ -31,7 +31,7 @@ async function testAutoRelease() {
 
   // 4. Pay final settlement
   const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsInVzZXJuYW1lIjoiYWRtaW4iLCJyb2xlIjoiQURNSU4iLCJpYXQiOjE3OTI2NDkzNDMsImV4cCI6MTc5MjczNTc0M30.Hg_TUjz4QIt7hPRWiV6DkV2PxytLS_671gXdJsdJDhk';
-  const pRes = await fetch('http://localhost/gold_pawn_erp/backend/payments/create.php', {
+  const pRes = await fetch('https://backedn-node.onrender.com/payments/create.php', {
     method: 'POST',
     headers: {
       'Authorization': 'Bearer ' + token,
