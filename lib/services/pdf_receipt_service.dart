@@ -143,7 +143,82 @@ class PdfReceiptService {
 
           pw.SizedBox(height: 8),
 
+          _buildTermsAndConditions(),
+
+          pw.SizedBox(height: 8),
+
           _buildFooter(data),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // TERMS AND CONDITIONS
+  // ============================================================
+
+  static pw.Widget _buildTermsAndConditions() {
+    final conditions = [
+      'Interest: Interest will be calculated according to the agreed loan terms and applicable business rules.',
+      'Repayment: The customer must repay the outstanding principal and applicable interest according to the agreed repayment terms.',
+      'Pledged Gold: The pledged gold items will remain as collateral until the outstanding loan and applicable dues are settled.',
+      'Release of Gold: Pledged gold items will be released only after the required settlement and verification are completed.',
+      'Receipt and Records: The customer should retain this receipt for future reference and present it when requesting repayment confirmation or release of pledged items.',
+    ];
+
+    return pw.Container(
+      width: double.infinity,
+      padding: const pw.EdgeInsets.all(8),
+      decoration: pw.BoxDecoration(
+        color: pdfLightGray,
+        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+        border: pw.Border.all(color: pdfBorderColor, width: 0.8),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            'TERMS AND CONDITIONS',
+            style: const pw.TextStyle(
+              fontSize: 8.5,
+              fontWeight: pw.FontWeight.bold,
+              color: pdfNavy,
+            ),
+          ),
+          pw.SizedBox(height: 4),
+          pw.Divider(height: 1, thickness: 0.5, color: pdfBorderColor),
+          pw.SizedBox(height: 4),
+          pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: List.generate(conditions.length, (index) {
+              return pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 3),
+                child: pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      '${index + 1}. ',
+                      style: const pw.TextStyle(
+                        fontSize: 7.5,
+                        fontWeight: pw.FontWeight.bold,
+                        color: pdfDarkGold,
+                      ),
+                    ),
+                    pw.Expanded(
+                      child: pw.Text(
+                        conditions[index],
+                        style: const pw.TextStyle(
+                          fontSize: 7.5,
+                          color: pdfCharcoal,
+                          lineSpacing: 1.1,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ),
         ],
       ),
     );

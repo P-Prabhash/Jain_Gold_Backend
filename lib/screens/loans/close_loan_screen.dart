@@ -6,6 +6,7 @@ import '../../config/constants.dart';
 import '../../config/theme.dart';
 import '../../providers/loan_provider.dart';
 import '../../widgets/a4_receipt_viewer.dart';
+import '../../widgets/success_dialog.dart';
 
 class CloseLoanScreen extends StatefulWidget {
   final int loanId;
@@ -89,21 +90,29 @@ class _CloseLoanScreenState extends State<CloseLoanScreen> {
     setState(() => _isSubmitting = false);
 
     if (res != null && res['success'] == true && mounted) {
-      final isClosed = res['data']?['is_closed'] == true;
-      Navigator.of(context).pop(true);
+      final receipt = res['data']?['receipt'] ?? res['receipt'];
 
-      if (res['data']?['receipt'] != null) {
-        showDialog(
-          context: context,
-          builder: (_) => A4ReceiptViewer(receiptData: res['data']['receipt']),
-        );
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(isClosed ? 'Loan settled in full and CLOSED! Collateral discharged.' : 'Settlement payment recorded. Loan remains ACTIVE.'),
-          backgroundColor: isClosed ? const Color(0xFF065F46) : AppTheme.goldDark,
-        ),
+      SuccessDialog.show(
+        context: context,
+        title: 'Loan Closed Successfully',
+        message: 'Loan closure and collateral release have been completed successfully.',
+        onOk: () {
+          Navigator.of(context).pop(true);
+        },
+        printLabel: 'Print Receipt',
+        onPrint: () {
+          Navigator.of(context).pop(true);
+          if (receipt != null) {
+            showDialog(
+              context: context,
+              builder: (_) => A4ReceiptViewer(
+                receiptData: receipt is Map<String, dynamic>
+                    ? receipt
+                    : Map<String, dynamic>.from(receipt as Map),
+              ),
+            );
+          }
+        },
       );
     } else if (provider.errorMessage != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

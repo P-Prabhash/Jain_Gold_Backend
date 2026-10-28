@@ -21,11 +21,15 @@ import '../loans/loan_details_screen.dart';
 class CustomerProfileScreen extends StatefulWidget {
   final int customerId;
   final Function(int tab, {Map<String, dynamic>? initialParams})? onNavigate;
+  final bool autoOpenAddGold;
+  final List<int>? autoOpenNewLoanWithGoldIds;
 
   const CustomerProfileScreen({
     super.key,
     required this.customerId,
     this.onNavigate,
+    this.autoOpenAddGold = false,
+    this.autoOpenNewLoanWithGoldIds,
   });
 
   @override
@@ -39,8 +43,15 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> with Sing
   void initState() {
     super.initState();
     _tabController = TabController(length: 5, vsync: this);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<CustomerProvider>().fetchCustomerDetails(widget.customerId);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await context.read<CustomerProvider>().fetchCustomerDetails(widget.customerId);
+      if (!mounted) return;
+      if (widget.autoOpenAddGold) {
+        _openAddGoldModal();
+      } else if (widget.autoOpenNewLoanWithGoldIds != null &&
+          widget.autoOpenNewLoanWithGoldIds!.isNotEmpty) {
+        _openNewLoanModal(preselectedGoldItemIds: widget.autoOpenNewLoanWithGoldIds);
+      }
     });
   }
 
@@ -51,20 +62,31 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> with Sing
   }
 
   void _openAddGoldModal() async {
-    final result = await showResponsiveDialog<bool>(
+    final result = await showResponsiveDialog<dynamic>(
       context: context,
       child: AddGoldScreen(customerId: widget.customerId),
     );
 
-    if (result == true && mounted) {
-      context.read<CustomerProvider>().fetchCustomerDetails(widget.customerId);
+    if (!mounted) return;
+    context.read<CustomerProvider>().fetchCustomerDetails(widget.customerId);
+
+    if (result is Map && result['action'] == 'next') {
+      final rawGoldIds = result['goldItemIds'];
+      List<int> goldIds = [];
+      if (rawGoldIds is List) {
+        goldIds = rawGoldIds.map((e) => int.tryParse(e.toString()) ?? 0).where((id) => id > 0).toList();
+      }
+      _openNewLoanModal(preselectedGoldItemIds: goldIds);
     }
   }
 
-  void _openNewLoanModal() async {
+  void _openNewLoanModal({List<int>? preselectedGoldItemIds}) async {
     final result = await showResponsiveDialog<bool>(
       context: context,
-      child: CreateNewLoanScreen(preselectedCustomerId: widget.customerId),
+      child: CreateNewLoanScreen(
+        preselectedCustomerId: widget.customerId,
+        preselectedGoldItemIds: preselectedGoldItemIds,
+      ),
     );
 
     if (result == true && mounted) {

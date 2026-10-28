@@ -892,34 +892,48 @@ class _GoldInventoryScreenState
     GoldItem g, {
     required bool compact,
   }) {
-    final bool hasPhoto =
-        g.photoUrl != null &&
-        g.photoUrl!.isNotEmpty;
+    final resolvedUrl = ApiService.resolvePhotoUrl(g.photoUrl);
+    final double avatarRadius = compact ? 18 : 16;
 
     return _tableCell(
       Row(
         children: [
-          CircleAvatar(
-            radius: compact ? 18 : 16,
-            backgroundColor:
-                AppTheme.goldLight,
-            backgroundImage: hasPhoto
-                ? NetworkImage(
-                    g.photoUrl!.startsWith(
-                            'http')
-                        ? g.photoUrl!
-                        : '${ApiService.baseUrl}${g.photoUrl!}',
-                  )
-                : null,
-            child: !hasPhoto
-                ? Icon(
-                    Icons.diamond,
-                    size: compact ? 18 : 15,
-                    color:
-                        AppTheme.goldDark,
-                  )
-                : null,
-          ),
+          if (resolvedUrl != null && resolvedUrl.isNotEmpty)
+            Container(
+              width: avatarRadius * 2,
+              height: avatarRadius * 2,
+              decoration: const BoxDecoration(
+                color: AppTheme.goldLight,
+                shape: BoxShape.circle,
+              ),
+              child: ClipOval(
+                child: Image.network(
+                  resolvedUrl,
+                  width: avatarRadius * 2,
+                  height: avatarRadius * 2,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Center(
+                      child: Icon(
+                        Icons.diamond,
+                        size: compact ? 18 : 15,
+                        color: AppTheme.goldDark,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            )
+          else
+            CircleAvatar(
+              radius: avatarRadius,
+              backgroundColor: AppTheme.goldLight,
+              child: Icon(
+                Icons.diamond,
+                size: compact ? 18 : 15,
+                color: AppTheme.goldDark,
+              ),
+            ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -1245,26 +1259,44 @@ class _GoldInventoryScreenState
     bool hasPhoto, {
     required double radius,
   }) {
+    final resolvedUrl = ApiService.resolvePhotoUrl(g.photoUrl);
+
+    if (resolvedUrl != null && resolvedUrl.isNotEmpty) {
+      return Container(
+        width: radius * 2,
+        height: radius * 2,
+        decoration: const BoxDecoration(
+          color: AppTheme.goldLight,
+          shape: BoxShape.circle,
+        ),
+        child: ClipOval(
+          child: Image.network(
+            resolvedUrl,
+            width: radius * 2,
+            height: radius * 2,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Center(
+                child: Icon(
+                  Icons.diamond,
+                  size: radius,
+                  color: AppTheme.goldDark,
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    }
+
     return CircleAvatar(
       radius: radius,
-      backgroundColor:
-          AppTheme.goldLight,
-      backgroundImage: hasPhoto
-          ? NetworkImage(
-              g.photoUrl!.startsWith(
-                      'http')
-                  ? g.photoUrl!
-                  : '${ApiService.baseUrl}${g.photoUrl!}',
-            )
-          : null,
-      child: !hasPhoto
-          ? Icon(
-              Icons.diamond,
-              size: radius,
-              color:
-                  AppTheme.goldDark,
-            )
-          : null,
+      backgroundColor: AppTheme.goldLight,
+      child: Icon(
+        Icons.diamond,
+        size: radius,
+        color: AppTheme.goldDark,
+      ),
     );
   }
 

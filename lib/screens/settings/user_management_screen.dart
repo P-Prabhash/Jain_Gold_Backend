@@ -5,6 +5,8 @@ import '../../config/theme.dart';
 import '../../providers/user_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
+import '../../widgets/confirm_delete_dialog.dart';
+import '../../widgets/success_dialog.dart';
 
 const Color kPageBackground = Color(0xFFF5F6F8);
 
@@ -2608,7 +2610,7 @@ class _UserManagementScreenState
     UserProvider provider,
     Map<String, dynamic> user,
     int userId,
-  ) {
+  ) async {
     final auth = context.read<AuthProvider>();
     if (!_isLoggedInAdmin(auth)) {
       _showMessage(context, 'Only ADMIN can delete users.');
@@ -2618,60 +2620,31 @@ class _UserManagementScreenState
     final username = _value(user, ['username']);
     final fullName = _value(user, ['full_name', 'name']);
 
-    showDialog(
+    final confirmed = await ConfirmDeleteDialog.show(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.delete_forever, color: AppTheme.statusDanger),
-              SizedBox(width: 8),
-              Text(
-                'Delete User',
-                style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  color: AppTheme.darkNavy,
-                ),
-              ),
-            ],
-          ),
-          content: Text(
-            'Are you sure you want to delete user "$fullName" (@$username)?\n\nThis will deactivate their access to the system.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-              },
-              child: const Text('CANCEL'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.pop(dialogContext);
-
-                final success = await provider.deleteUser(
-                  userId,
-                );
-
-                if (!context.mounted) return;
-
-                _showMessage(
-                  context,
-                  success
-                      ? 'User deleted successfully.'
-                      : provider.errorMessage ?? 'Unable to delete user.',
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.statusDanger,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('DELETE USER'),
-            ),
-          ],
-        );
-      },
+      title: 'Confirm Delete User',
+      message: 'Are you sure you want to delete user "$fullName" (@$username)?\n\nThis will deactivate their access to the system.',
+      confirmLabel: 'DELETE USER',
     );
+
+    if (!confirmed || !context.mounted) return;
+
+    final success = await provider.deleteUser(userId);
+
+    if (!context.mounted) return;
+
+    if (success) {
+      SuccessDialog.show(
+        context: context,
+        title: 'User Deleted Successfully',
+        message: 'User "$fullName" (@$username) has been deleted successfully.',
+      );
+    } else {
+      _showMessage(
+        context,
+        provider.errorMessage ?? 'Unable to delete user.',
+      );
+    }
   }
 
   // ============================================================

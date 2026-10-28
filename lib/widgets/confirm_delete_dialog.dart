@@ -56,7 +56,7 @@ class ConfirmDeleteDialog extends StatelessWidget {
               width: 56,
               height: 56,
               decoration: BoxDecoration(
-                color: AppTheme.statusDanger.withOpacity(0.12),
+                color: AppTheme.statusDanger.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -81,7 +81,7 @@ class ConfirmDeleteDialog extends StatelessWidget {
               textAlign: TextAlign.center,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 14,
-                color: AppTheme.slateGray,
+                color: const Color(0xFF64748B),
                 height: 1.4,
               ),
             ),

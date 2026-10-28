@@ -12,6 +12,7 @@ import '../../providers/loan_provider.dart';
 import '../../services/api_service.dart';
 import '../../widgets/a4_receipt_viewer.dart';
 import '../../widgets/gold_badge.dart';
+import '../../widgets/success_dialog.dart';
 
 class CreateAdditionalLoanScreen extends StatefulWidget {
   final int? preselectedCustomerId;
@@ -468,21 +469,30 @@ class _CreateAdditionalLoanScreenState
 
       if (res != null &&
           res['success'] == true) {
-        final receipt =
-            res['data']?['receipt'];
+        final receipt = res['data']?['receipt'] ?? res['receipt'];
 
-        Navigator.of(context).pop(true);
-
-        if (receipt != null) {
-          await showDialog(
-            context: context,
-            builder: (_) =>
-                A4ReceiptViewer(
-              receiptData: receipt,
-            ),
-          );
-        }
-
+        SuccessDialog.show(
+          context: context,
+          title: 'Additional Loan Created Successfully',
+          message: 'Additional pawn loan has been saved successfully.',
+          onOk: () {
+            Navigator.of(context).pop(true);
+          },
+          printLabel: 'Print Receipt',
+          onPrint: () {
+            Navigator.of(context).pop(true);
+            if (receipt != null) {
+              showDialog(
+                context: context,
+                builder: (_) => A4ReceiptViewer(
+                  receiptData: receipt is Map<String, dynamic>
+                      ? receipt
+                      : Map<String, dynamic>.from(receipt as Map),
+                ),
+              );
+            }
+          },
+        );
         return;
       }
 

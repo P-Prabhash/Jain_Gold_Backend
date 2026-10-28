@@ -5,9 +5,13 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/theme.dart';
+import '../../models/customer.dart';
 import '../../providers/customer_provider.dart';
 import '../../providers/gold_provider.dart';
+import '../../services/api_service.dart';
 import '../../widgets/image_picker_widget.dart';
+import '../../widgets/success_dialog.dart';
+import '../customers/customer_profile_screen.dart';
 
 class AddGoldScreen extends StatefulWidget {
   final int? customerId;
@@ -36,6 +40,8 @@ class _AddGoldScreenState extends State<AddGoldScreen> {
   final TextEditingController _itemNameCtrl =
       TextEditingController();
 
+  final FocusNode _itemNameFocusNode = FocusNode();
+
   final TextEditingController _weightCtrl =
       TextEditingController();
 
@@ -47,6 +53,21 @@ class _AddGoldScreenState extends State<AddGoldScreen> {
   String _uploadedPhotoUrl = '';
 
   bool _isSubmitting = false;
+
+  static const List<String> _goldItemSuggestions = [
+    'Ring',
+    'Chain',
+    'Necklace',
+    'Bangle',
+    'Bracelet',
+    'Earrings',
+    'Studs',
+    'Pendant',
+    'Coin',
+    'Gold Bar',
+    'Nose Ring',
+    'Anklet',
+  ];
 
   // ============================================================
   // TEMPORARY GOLD ITEMS
@@ -71,9 +92,35 @@ class _AddGoldScreenState extends State<AddGoldScreen> {
 
     _selectedCustomerId = widget.customerId;
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (mounted) {
-        context.read<CustomerProvider>().fetchCustomers();
+        final custProvider = context.read<CustomerProvider>();
+        await custProvider.fetchCustomers();
+        if (_selectedCustomerId != null && _selectedCustomerId! > 0) {
+          final matches = custProvider.customers
+              .where((c) => c.id == _selectedCustomerId)
+              .toList();
+          if (matches.isNotEmpty) {
+            _selectCustomer(matches.first);
+          } else {
+            try {
+              final res = await ApiService.getCustomerDetails(_selectedCustomerId!);
+              if (res['customer'] != null) {
+                final cust = Customer.fromJson(res['customer']);
+                _selectCustomer(cust);
+              }
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Unable to load customer details: $e'),
+                    backgroundColor: AppTheme.statusDanger,
+                  ),
+                );
+              }
+            }
+          }
+        }
       }
     });
   }
@@ -88,6 +135,7 @@ class _AddGoldScreenState extends State<AddGoldScreen> {
     _itemNameCtrl.dispose();
     _weightCtrl.dispose();
     _remarksCtrl.dispose();
+    _itemNameFocusNode.dispose();
 
     super.dispose();
   }
@@ -161,6 +209,155 @@ class _AddGoldScreenState extends State<AddGoldScreen> {
   // ADD GOLD TO TEMPORARY LIST
   // ============================================================
 
+  void _showGoldAddedDialog(Map<String, dynamic> addedItem) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        elevation: 10,
+        backgroundColor: Colors.white,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 440),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF065F46).withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check_circle_rounded,
+                  color: Color(0xFF065F46),
+                  size: 36,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Gold Added Successfully!',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.darkNavy,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Gold item added successfully. What would you like to do next?',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  color: const Color(0xFF64748B),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppTheme.silverLight,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppTheme.silverBorder),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.workspace_premium, color: AppTheme.goldDark, size: 22),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            addedItem['item_name']?.toString() ?? '',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.darkNavy,
+                            ),
+                          ),
+                          Text(
+                            'Purity: ${addedItem['purity_display'] ?? addedItem['purity']} • Weight: ${addedItem['weight']} g',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              color: const Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(dialogCtx).pop();
+                        _clearCurrentGoldForm();
+                        _itemNameFocusNode.requestFocus();
+                      },
+                      icon: const Icon(Icons.add, size: 18),
+                      label: Text(
+                        'ADD GOLD',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.darkNavy,
+                        side: const BorderSide(color: AppTheme.goldPrimary, width: 1.5),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.of(dialogCtx).pop();
+                        _handleCreateLoanNext();
+                      },
+                      icon: const Icon(Icons.arrow_forward, size: 18),
+                      label: Text(
+                        'NEXT',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.goldDark,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // ADD GOLD TO TEMPORARY LIST
+  // ============================================================
+
   void _addGoldToList() {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -184,7 +381,7 @@ class _AddGoldScreenState extends State<AddGoldScreen> {
     if (weight == null || weight <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Enter a valid gold weight'),
+          content: Text('Enter a valid gold weight greater than zero'),
         ),
       );
       return;
@@ -193,26 +390,60 @@ class _AddGoldScreenState extends State<AddGoldScreen> {
     final cleanPurity =
         _selectedPurity.split(' ')[0];
 
+    final newItem = {
+      'customer_id': _selectedCustomerId,
+      'item_name': itemName,
+      'purity': cleanPurity,
+      'purity_display': _selectedPurity,
+      'weight': weight,
+      'remarks': _remarksCtrl.text.trim(),
+      'photo_url': _uploadedPhotoUrl,
+      'id': null,
+    };
+
     setState(() {
-      _pendingGoldItems.add({
-        'customer_id': _selectedCustomerId,
-        'item_name': itemName,
-        'purity': cleanPurity,
-        'purity_display': _selectedPurity,
-        'weight': weight,
-        'remarks': _remarksCtrl.text.trim(),
-        'photo_url': _uploadedPhotoUrl,
-      });
+      _pendingGoldItems.add(newItem);
     });
 
     _clearCurrentGoldForm();
 
+    _showGoldAddedDialog(newItem);
+  }
+
+  // ============================================================
+  // EDIT PENDING GOLD ITEM
+  // ============================================================
+
+  void _editPendingGoldItem(int index) {
+    if (_isSubmitting) return;
+
+    final item = _pendingGoldItems[index];
+
+    setState(() {
+      _itemNameCtrl.text = item['item_name']?.toString() ?? '';
+      _weightCtrl.text = item['weight']?.toString() ?? '';
+      _remarksCtrl.text = item['remarks']?.toString() ?? '';
+      _uploadedPhotoUrl = item['photo_url']?.toString() ?? '';
+
+      final purityStr = item['purity_display']?.toString() ?? item['purity']?.toString() ?? '';
+      if (_purityOptions.contains(purityStr)) {
+        _selectedPurity = purityStr;
+      } else {
+        final matched = _purityOptions.firstWhere(
+          (p) => p.startsWith(purityStr),
+          orElse: () => '22K (91.6%)',
+        );
+        _selectedPurity = matched;
+      }
+
+      _pendingGoldItems.removeAt(index);
+    });
+
+    _itemNameFocusNode.requestFocus();
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          '"$itemName" added to gold items',
-        ),
-        backgroundColor: const Color(0xFF065F46),
+        content: Text('Editing "${item['item_name']}"'),
         duration: const Duration(seconds: 2),
       ),
     );
@@ -244,30 +475,75 @@ class _AddGoldScreenState extends State<AddGoldScreen> {
   }
 
   // ============================================================
-  // SAVE ALL GOLD ITEMS
+  // PERSIST PENDING GOLD ITEMS
   // ============================================================
 
-  Future<void> _saveAllGold() async {
-    if (_isSubmitting) {
-      return;
-    }
-
-    if (_selectedCustomerId == null ||
-        _selectedCustomerId! <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a customer'),
-        ),
-      );
-      return;
+  Future<List<int>> _persistPendingGoldItems() async {
+    if (_itemNameCtrl.text.trim().isNotEmpty) {
+      final weight = double.tryParse(_weightCtrl.text.trim());
+      if (weight != null && weight > 0) {
+        final cleanPurity = _selectedPurity.split(' ')[0];
+        _pendingGoldItems.add({
+          'customer_id': _selectedCustomerId,
+          'item_name': _itemNameCtrl.text.trim(),
+          'purity': cleanPurity,
+          'purity_display': _selectedPurity,
+          'weight': weight,
+          'remarks': _remarksCtrl.text.trim(),
+          'photo_url': _uploadedPhotoUrl,
+          'id': null,
+        });
+        _clearCurrentGoldForm();
+      }
     }
 
     if (_pendingGoldItems.isEmpty) {
+      throw Exception('Please add at least one gold item first');
+    }
+
+    final provider = context.read<GoldProvider>();
+    final List<int> savedGoldItemIds = [];
+
+    for (int i = 0; i < _pendingGoldItems.length; i++) {
+      final goldItem = _pendingGoldItems[i];
+
+      if (goldItem['id'] != null && (goldItem['id'] as int) > 0) {
+        savedGoldItemIds.add(goldItem['id'] as int);
+        continue;
+      }
+
+      final item = await provider.addGoldItem({
+        'customer_id': _selectedCustomerId,
+        'item_name': goldItem['item_name'],
+        'purity': goldItem['purity'],
+        'weight': goldItem['weight'],
+        'remarks': goldItem['remarks'],
+        'photo_url': goldItem['photo_url'],
+      });
+
+      if (item != null) {
+        goldItem['id'] = item.id;
+        savedGoldItemIds.add(item.id);
+      } else {
+        throw Exception(
+          provider.errorMessage ?? 'Failed to save gold item',
+        );
+      }
+    }
+
+    return savedGoldItemIds;
+  }
+
+  // ============================================================
+  // SAVE ALL GOLD ITEMS (OPTION 1: SAVE FOR LATER)
+  // ============================================================
+
+  Future<void> _handleSaveAllGold() async {
+    if (_isSubmitting) return;
+
+    if (_selectedCustomerId == null || _selectedCustomerId! <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content:
-              Text('Please add at least one gold item'),
-        ),
+        const SnackBar(content: Text('Please select a customer')),
       );
       return;
     }
@@ -277,54 +553,98 @@ class _AddGoldScreenState extends State<AddGoldScreen> {
     });
 
     try {
-      final provider = context.read<GoldProvider>();
+      final savedIds = await _persistPendingGoldItems();
 
-      int savedCount = 0;
+      if (!mounted) return;
 
-      for (final goldItem in _pendingGoldItems) {
-        final item = await provider.addGoldItem({
-          'customer_id': _selectedCustomerId,
-          'item_name': goldItem['item_name'],
-          'purity': goldItem['purity'],
-          'weight': goldItem['weight'],
-          'remarks': goldItem['remarks'],
-          'photo_url': goldItem['photo_url'],
-        });
-
-        if (item != null) {
-          savedCount++;
-        } else {
-          throw Exception(
-            provider.errorMessage ??
-                'Failed to save gold item',
-          );
-        }
-      }
-
-      if (!mounted) {
-        return;
-      }
+      SuccessDialog.show(
+        context: context,
+        title: 'Gold Items Saved Successfully',
+        message: 'Gold items saved successfully.',
+        okLabel: 'OK',
+        onOk: () {
+          if (widget.customerId != null && widget.customerId! > 0) {
+            Navigator.of(context).pop({
+              'action': 'saved',
+              'goldItemIds': savedIds,
+              'customerId': _selectedCustomerId,
+            });
+          } else {
+            Navigator.of(context).pop(true);
+          }
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '$savedCount gold item(s) saved successfully!',
+            e.toString().replaceFirst('Exception: ', ''),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
           ),
-          backgroundColor: const Color(0xFF065F46),
-          duration: const Duration(seconds: 2),
+          backgroundColor: AppTheme.statusDanger,
+          duration: const Duration(seconds: 4),
         ),
       );
-
-      Navigator.of(context).pop(true);
-    } catch (e) {
-      if (!mounted) {
-        return;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
       }
+    }
+  }
+
+  // ============================================================
+  // CREATE LOAN / NEXT (OPTION 2: CREATE LOAN IMMEDIATELY)
+  // ============================================================
+
+  Future<void> _handleCreateLoanNext() async {
+    if (_isSubmitting) return;
+
+    if (_selectedCustomerId == null || _selectedCustomerId! <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a customer')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      final savedIds = await _persistPendingGoldItems();
+
+      if (!mounted) return;
+
+      if (widget.customerId != null && widget.customerId! > 0) {
+        Navigator.of(context).pop({
+          'action': 'next',
+          'goldItemIds': savedIds,
+          'customerId': _selectedCustomerId,
+        });
+      } else if (_selectedCustomerId != null && _selectedCustomerId! > 0) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => CustomerProfileScreen(
+              customerId: _selectedCustomerId!,
+              autoOpenNewLoanWithGoldIds: savedIds,
+            ),
+          ),
+        );
+      } else {
+        Navigator.of(context).pop(true);
+      }
+    } catch (e) {
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Unable to save gold items: $e',
+            e.toString().replaceFirst('Exception: ', ''),
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
           ),
@@ -588,20 +908,32 @@ class _AddGoldScreenState extends State<AddGoldScreen> {
 
                     const SizedBox(width: 6),
 
-                    IconButton(
-                      tooltip: 'Remove item',
-                      onPressed: _isSubmitting
-                          ? null
-                          : () =>
-                              _removePendingGoldItem(
-                                index,
-                              ),
-                      icon: const Icon(
-                        Icons.delete_outline,
-                        size: 20,
-                        color:
-                            AppTheme.statusDanger,
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'Edit item',
+                          onPressed: _isSubmitting
+                              ? null
+                              : () => _editPendingGoldItem(index),
+                          icon: const Icon(
+                            Icons.edit_outlined,
+                            size: 19,
+                            color: AppTheme.darkNavy,
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Remove item',
+                          onPressed: _isSubmitting
+                              ? null
+                              : () => _removePendingGoldItem(index),
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            size: 20,
+                            color: AppTheme.statusDanger,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -673,8 +1005,10 @@ class _AddGoldScreenState extends State<AddGoldScreen> {
             ? 760
             : 1050;
 
-    return Center(
-      child: Container(
+    return Material(
+      color: Colors.transparent,
+      child: Center(
+        child: Container(
         width: double.infinity,
         height: isMobile ? MediaQuery.of(context).size.height : null,
         constraints: BoxConstraints(
@@ -774,6 +1108,7 @@ class _AddGoldScreenState extends State<AddGoldScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 
@@ -934,6 +1269,13 @@ class _AddGoldScreenState extends State<AddGoldScreen> {
   // ============================================================
 
   Widget _buildSelectedCustomerResponsive(bool mobile) {
+    String infoText = 'Customer selected';
+    if (_customerSearchCtrl.text.trim().isNotEmpty) {
+      infoText = _customerSearchCtrl.text.trim();
+    } else if (_selectedCustomerId != null) {
+      infoText = 'Customer ID: $_selectedCustomerId';
+    }
+
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: mobile ? 10 : 12,
@@ -951,27 +1293,45 @@ class _AddGoldScreenState extends State<AddGoldScreen> {
           ),
         ),
       ),
-      child: const Row(
+      child: Row(
         children: [
-           Icon(
-            Icons.person,
-            size: 18,
+          const Icon(
+            Icons.person_pin_rounded,
+            size: 20,
             color: AppTheme.goldDark,
           ),
-           SizedBox(width: 8),
-           Expanded(
-            child: Text(
-              'Customer selected',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: AppTheme.darkNavy,
-              ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'CONFIRMED CUSTOMER',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                    color: AppTheme.goldDark,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  infoText,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.darkNavy,
+                  ),
+                ),
+              ],
             ),
           ),
-           Icon(
+          const SizedBox(width: 8),
+          const Icon(
             Icons.check_circle,
-            size: 18,
+            size: 20,
             color: Color(0xFF065F46),
           ),
         ],
@@ -1106,23 +1466,85 @@ class _AddGoldScreenState extends State<AddGoldScreen> {
   // ============================================================
 
   Widget _buildItemNameField() {
-    return TextFormField(
-      controller: _itemNameCtrl,
-      enabled: !_isSubmitting,
-      decoration: const InputDecoration(
-        labelText: 'Item Name / Description *',
-        hintText:
-            'e.g. Gold Chain, Bangles (2 pcs), Ring',
-        prefixIcon: Icon(
-          Icons.shopping_bag_outlined,
-          color: AppTheme.goldDark,
-        ),
-      ),
-      validator: (val) {
-        if (val == null || val.trim().isEmpty) {
-          return 'Item name is required';
+    return RawAutocomplete<String>(
+      textEditingController: _itemNameCtrl,
+      focusNode: _itemNameFocusNode,
+      optionsBuilder: (TextEditingValue textEditingValue) {
+        final query = textEditingValue.text.trim().toLowerCase();
+        if (query.isEmpty) {
+          return const Iterable<String>.empty();
         }
-        return null;
+        return _goldItemSuggestions.where((option) {
+          return option.toLowerCase().contains(query);
+        });
+      },
+      onSelected: (String selection) {
+        _itemNameCtrl.text = selection;
+        _itemNameCtrl.selection = TextSelection.fromPosition(
+          TextPosition(offset: selection.length),
+        );
+      },
+      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+        return TextFormField(
+          controller: controller,
+          focusNode: focusNode,
+          enabled: !_isSubmitting,
+          textInputAction: TextInputAction.next,
+          decoration: const InputDecoration(
+            labelText: 'Item Name / Description *',
+            hintText: 'e.g. Ring, Chain, Necklace, Bangles',
+            prefixIcon: Icon(
+              Icons.shopping_bag_outlined,
+              color: AppTheme.goldDark,
+            ),
+          ),
+          validator: (val) {
+            if (val == null || val.trim().isEmpty) {
+              return 'Item name is required';
+            }
+            return null;
+          },
+        );
+      },
+      optionsViewBuilder: (context, onSelected, options) {
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            elevation: 8,
+            borderRadius: BorderRadius.circular(8),
+            color: Colors.white,
+            child: Container(
+              constraints: const BoxConstraints(maxHeight: 200, maxWidth: 320),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppTheme.silverBorder),
+              ),
+              child: ListView.separated(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                itemCount: options.length,
+                separatorBuilder: (_, __) => const Divider(height: 1, color: AppTheme.silverBorder),
+                itemBuilder: (BuildContext context, int index) {
+                  final option = options.elementAt(index);
+                  return ListTile(
+                    dense: true,
+                    visualDensity: VisualDensity.compact,
+                    title: Text(
+                      option,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.darkNavy,
+                      ),
+                    ),
+                    onTap: () => onSelected(option),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
       },
     );
   }
@@ -1370,81 +1792,79 @@ class _AddGoldScreenState extends State<AddGoldScreen> {
     bool mobile,
     bool tablet,
   ) {
+    final bool hasItemsToProcess =
+        _pendingGoldItems.isNotEmpty || _itemNameCtrl.text.trim().isNotEmpty;
+
     final cancelButton = OutlinedButton(
       onPressed: _isSubmitting
           ? null
           : () => Navigator.of(context).pop(),
       style: OutlinedButton.styleFrom(
         minimumSize: Size(
-          mobile ? double.infinity : 120,
+          mobile ? double.infinity : 100,
           46,
         ),
+        side: const BorderSide(color: AppTheme.silverBorder),
       ),
       child: const Text(
         'CANCEL',
         style: TextStyle(
           fontWeight: FontWeight.w700,
+          color: AppTheme.darkNavy,
         ),
       ),
     );
 
-    final saveButton = ElevatedButton.icon(
-      onPressed:
-          _isSubmitting ||
-                  _pendingGoldItems.isEmpty
-              ? null
-              : _saveAllGold,
+    final saveOnlyButton = OutlinedButton.icon(
+      onPressed: _isSubmitting || !hasItemsToProcess
+          ? null
+          : _handleSaveAllGold,
+      icon: const Icon(Icons.save_outlined, size: 18),
+      label: const Text(
+        'SAVE ALL GOLD',
+        style: TextStyle(fontWeight: FontWeight.bold),
+      ),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppTheme.goldDark,
+        side: const BorderSide(color: AppTheme.goldPrimary, width: 1.5),
+        minimumSize: Size(mobile ? double.infinity : 150, 46),
+      ),
+    );
+
+    final createLoanNextButton = ElevatedButton.icon(
+      onPressed: _isSubmitting || !hasItemsToProcess
+          ? null
+          : _handleCreateLoanNext,
       icon: _isSubmitting
           ? const SizedBox(
-              width: 19,
-              height: 19,
+              width: 18,
+              height: 18,
               child: CircularProgressIndicator(
-                color: AppTheme.darkNavy,
+                color: Colors.white,
                 strokeWidth: 2,
               ),
             )
-          : const Icon(
-              Icons.save,
-              size: 19,
-            ),
+          : const Icon(Icons.arrow_forward, size: 18),
       label: Text(
-        _isSubmitting
-            ? 'SAVING...'
-            : 'SAVE ALL GOLD',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          fontWeight: FontWeight.bold,
-        ),
+        _isSubmitting ? 'SAVING...' : 'CREATE LOAN / NEXT',
+        style: const TextStyle(fontWeight: FontWeight.bold),
       ),
       style: ElevatedButton.styleFrom(
-        backgroundColor: AppTheme.goldPrimary,
-        foregroundColor: AppTheme.darkNavy,
-        minimumSize: Size(
-          mobile ? double.infinity : 190,
-          46,
-        ),
-        padding: const EdgeInsets.symmetric(
-          vertical: 14,
-          horizontal: 18,
-        ),
+        backgroundColor: AppTheme.goldDark,
+        foregroundColor: Colors.white,
+        minimumSize: Size(mobile ? double.infinity : 180, 46),
       ),
     );
 
     if (mobile) {
       return Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(
-            height: 46,
-            child: saveButton,
-          ),
+          SizedBox(height: 46, child: createLoanNextButton),
           const SizedBox(height: 9),
-          SizedBox(
-            height: 46,
-            child: cancelButton,
-          ),
+          SizedBox(height: 46, child: saveOnlyButton),
+          const SizedBox(height: 9),
+          SizedBox(height: 46, child: cancelButton),
         ],
       );
     }
@@ -1452,15 +1872,11 @@ class _AddGoldScreenState extends State<AddGoldScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        SizedBox(
-          height: 46,
-          child: cancelButton,
-        ),
-        const SizedBox(width: 12),
-        SizedBox(
-          height: 46,
-          child: saveButton,
-        ),
+        SizedBox(height: 46, child: cancelButton),
+        const SizedBox(width: 10),
+        SizedBox(height: 46, child: saveOnlyButton),
+        const SizedBox(width: 10),
+        SizedBox(height: 46, child: createLoanNextButton),
       ],
     );
   }

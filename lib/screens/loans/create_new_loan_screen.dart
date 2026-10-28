@@ -11,13 +11,16 @@ import '../../providers/customer_provider.dart';
 import '../../providers/loan_provider.dart';
 import '../../services/api_service.dart';
 import '../../widgets/a4_receipt_viewer.dart';
+import '../../widgets/success_dialog.dart';
 
 class CreateNewLoanScreen extends StatefulWidget {
   final int? preselectedCustomerId;
+  final List<int>? preselectedGoldItemIds;
 
   const CreateNewLoanScreen({
     super.key,
     this.preselectedCustomerId,
+    this.preselectedGoldItemIds,
   });
 
   @override
@@ -66,20 +69,23 @@ class _CreateNewLoanScreenState
   void initState() {
     super.initState();
 
-    _selectedCustomerId =
-        widget.preselectedCustomerId;
+    _selectedCustomerId = widget.preselectedCustomerId;
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
 
-      context
-          .read<CustomerProvider>()
-          .fetchCustomers();
+      final custProvider = context.read<CustomerProvider>();
+      await custProvider.fetchCustomers();
 
-      if (_selectedCustomerId != null) {
-        _fetchCustomerAvailableGold(
-          _selectedCustomerId!,
-        );
+      if (_selectedCustomerId != null && _selectedCustomerId! > 0) {
+        final matches = custProvider.customers
+            .where((c) => c.id == _selectedCustomerId)
+            .toList();
+        if (matches.isNotEmpty) {
+          _selectCustomer(matches.first);
+        } else {
+          await _fetchCustomerAvailableGold(_selectedCustomerId!);
+        }
       }
     });
   }
@@ -181,6 +187,16 @@ class _CreateNewLoanScreenState
       );
 
       if (!mounted) return;
+
+      if (widget.preselectedGoldItemIds != null &&
+          widget.preselectedGoldItemIds!.isNotEmpty) {
+        for (final item in items) {
+          if (widget.preselectedGoldItemIds!.contains(item.id)) {
+            _selectedGoldItemIds.add(item.id);
+            _totalPledgedWeight += item.weight;
+          }
+        }
+      }
 
       setState(() {
         _customerAvailableGold = items;
@@ -314,27 +330,35 @@ class _CreateNewLoanScreenState
 
       if (res != null &&
           res['success'] == true) {
-        final receipt =
-            res['data']?['receipt'];
+        final receipt = res['data']?['receipt'] ?? res['receipt'];
 
-        Navigator.of(context).pop(true);
-
-        if (receipt != null) {
-          showDialog(
-            context: context,
-            builder: (_) {
-              return Dialog(
-                insetPadding:
-                    const EdgeInsets.all(10),
-                child:
-                    A4ReceiptViewer(
-                  receiptData:
-                      receipt,
-                ),
+        SuccessDialog.show(
+          context: context,
+          title: 'Pawn Loan Created Successfully',
+          message: 'The pawn loan has been saved successfully.',
+          onOk: () {
+            Navigator.of(context).pop(true);
+          },
+          printLabel: 'Print Receipt',
+          onPrint: () {
+            Navigator.of(context).pop(true);
+            if (receipt != null) {
+              showDialog(
+                context: context,
+                builder: (_) {
+                  return Dialog(
+                    insetPadding: const EdgeInsets.all(10),
+                    child: A4ReceiptViewer(
+                      receiptData: receipt is Map<String, dynamic>
+                          ? receipt
+                          : Map<String, dynamic>.from(receipt as Map),
+                    ),
+                  );
+                },
               );
-            },
-          );
-        }
+            }
+          },
+        );
       } else {
         final message =
             provider.errorMessage ??

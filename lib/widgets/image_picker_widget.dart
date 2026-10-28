@@ -78,14 +78,24 @@ class _ImagePickerWidgetState
       // getUserMedia camera dialog instead so Camera always opens
       // the real webcam directly.
       if (kIsWeb) {
-        final bytes = await captureFromWebCamera(context);
-
-        if (bytes == null || bytes.isEmpty) {
+        try {
+          final bytes = await captureFromWebCamera(context);
+          if (bytes == null || bytes.isEmpty) {
+            return;
+          }
+          await _processBytes(bytes);
+          return;
+        } catch (_) {
+          final XFile? photo = await _picker.pickImage(
+            source: ImageSource.camera,
+            maxWidth: 1024,
+            maxHeight: 1024,
+            imageQuality: 85,
+          );
+          if (photo == null) return;
+          await _processSelectedImage(photo);
           return;
         }
-
-        await _processBytes(bytes);
-        return;
       }
 
       // Android/iOS: keep the native image_picker camera flow.

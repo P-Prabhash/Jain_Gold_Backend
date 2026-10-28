@@ -22,24 +22,14 @@ Future<T?> showResponsiveDialog<T>({
   required Widget child,
   bool barrierDismissible = true,
 }) async {
-  final isMobile = MediaQuery.of(context).size.width < 600;
-
-  if (isMobile) {
-    return await showDialog<T>(
-      context: context,
-      barrierDismissible: barrierDismissible,
-      useSafeArea: false,
-      builder: (_) => Dialog.fullscreen(child: child),
-    );
-  }
-
   return await showDialog<T>(
     context: context,
     barrierDismissible: barrierDismissible,
+    barrierColor: const Color(0x80000000),
     builder: (_) => Dialog(
       backgroundColor: Colors.transparent,
       elevation: 0,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       child: child,
     ),
   );

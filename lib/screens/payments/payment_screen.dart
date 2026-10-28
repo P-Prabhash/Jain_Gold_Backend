@@ -11,6 +11,7 @@ import '../../models/loan.dart';
 import '../../providers/payment_provider.dart';
 import '../../services/api_service.dart';
 import '../../widgets/a4_receipt_viewer.dart';
+import '../../widgets/success_dialog.dart';
 
 class PaymentScreen extends StatefulWidget {
   final int? preselectedLoanId;
@@ -202,13 +203,30 @@ class _PaymentScreenState extends State<PaymentScreen> {
     setState(() => _isSubmitting = false);
 
     if (res != null && res['success'] == true && mounted) {
-      Navigator.of(context).pop(true);
-      if (res['data']?['receipt'] != null) {
-        showDialog(
-          context: context,
-          builder: (_) => A4ReceiptViewer(receiptData: res['data']['receipt']),
-        );
-      }
+      final receipt = res['data']?['receipt'] ?? res['receipt'];
+
+      SuccessDialog.show(
+        context: context,
+        title: 'Payment Created Successfully',
+        message: 'Payment transaction has been processed successfully.',
+        onOk: () {
+          Navigator.of(context).pop(true);
+        },
+        printLabel: 'Print Receipt',
+        onPrint: () {
+          Navigator.of(context).pop(true);
+          if (receipt != null) {
+            showDialog(
+              context: context,
+              builder: (_) => A4ReceiptViewer(
+                receiptData: receipt is Map<String, dynamic>
+                    ? receipt
+                    : Map<String, dynamic>.from(receipt as Map),
+              ),
+            );
+          }
+        },
+      );
     } else if (provider.errorMessage != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(provider.errorMessage!), backgroundColor: AppTheme.statusDanger),

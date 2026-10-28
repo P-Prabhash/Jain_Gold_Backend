@@ -5,7 +5,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../providers/customer_provider.dart';
+import 'customer_profile_screen.dart';
 import '../../widgets/image_picker_widget.dart';
+import '../../widgets/success_dialog.dart';
 
 class NewCustomerScreen extends StatefulWidget {
   const NewCustomerScreen({super.key});
@@ -42,13 +44,26 @@ class _NewCustomerScreenState extends State<NewCustomerScreen> {
     setState(() => _isSubmitting = false);
 
     if (newCust != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Customer ${newCust.name} (${newCust.customerCode}) created successfully!'),
-          backgroundColor: const Color(0xFF065F46),
-        ),
+      SuccessDialog.show(
+        context: context,
+        title: 'Customer Created Successfully',
+        message: 'Customer details have been saved successfully.',
+        onOk: () {
+          Navigator.of(context).pop(true);
+        },
+        nextLabel: 'Next',
+        onNext: () {
+          Navigator.of(context).pop(true);
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => CustomerProfileScreen(
+                customerId: newCust.id,
+                autoOpenAddGold: true,
+              ),
+            ),
+          );
+        },
       );
-      Navigator.of(context).pop(true);
     } else if (provider.errorMessage != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -75,8 +90,10 @@ class _NewCustomerScreenState extends State<NewCustomerScreen> {
                 ? 20.0
                 : 24.0;
 
-        return Container(
-          width: double.infinity,
+        return Material(
+          color: Colors.transparent,
+          child: Container(
+            width: double.infinity,
           height: isMobile ? MediaQuery.of(context).size.height : null,
           constraints: BoxConstraints(
             maxWidth: isMobile
@@ -391,6 +408,7 @@ class _NewCustomerScreenState extends State<NewCustomerScreen> {
               ),
             ],
           ),
+        ),
         );
       },
     );

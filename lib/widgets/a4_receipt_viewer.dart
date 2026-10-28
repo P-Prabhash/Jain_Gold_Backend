@@ -657,12 +657,100 @@ class A4ReceiptViewer extends StatelessWidget {
             mobile: mobile,
           ),
 
-        const SizedBox(height: 22),
+        const SizedBox(height: 16),
+
+        _buildTermsAndConditions(
+          mobile: mobile,
+        ),
+
+        const SizedBox(height: 18),
 
         _buildSignatures(
           mobile: mobile,
         ),
       ],
+    );
+  }
+
+  // ============================================================
+  // TERMS AND CONDITIONS
+  // ============================================================
+
+  Widget _buildTermsAndConditions({required bool mobile}) {
+    final conditions = [
+      'Interest: Interest will be calculated according to the agreed loan terms and applicable business rules.',
+      'Repayment: The customer must repay the outstanding principal and applicable interest according to the agreed repayment terms.',
+      'Pledged Gold: The pledged gold items will remain as collateral until the outstanding loan and applicable dues are settled.',
+      'Release of Gold: Pledged gold items will be released only after the required settlement and verification are completed.',
+      'Receipt and Records: The customer should retain this receipt for future reference and present it when requesting repayment confirmation or release of pledged items.',
+    ];
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(mobile ? 10 : 12),
+      decoration: BoxDecoration(
+        color: AppTheme.silverLight,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppTheme.silverBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.gavel_rounded,
+                size: 15,
+                color: AppTheme.goldDark,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'TERMS AND CONDITIONS',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: mobile ? 10.5 : 11.5,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                  color: AppTheme.darkNavy,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Divider(height: 1, color: AppTheme.silverBorder),
+          const SizedBox(height: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: List.generate(conditions.length, (index) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 5),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${index + 1}. ',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: mobile ? 9 : 10,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.goldDark,
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        conditions[index],
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: mobile ? 9 : 10,
+                          color: AppTheme.darkNavy,
+                          height: 1.3,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
     );
   }
 

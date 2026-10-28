@@ -12,6 +12,8 @@ import '../../models/gold_item.dart';
 import '../../providers/customer_provider.dart';
 import '../../providers/loan_provider.dart';
 import '../../services/api_service.dart';
+import '../../widgets/a4_receipt_viewer.dart';
+import '../../widgets/success_dialog.dart';
 
 class CreateExistingLoanScreen extends StatefulWidget {
   const CreateExistingLoanScreen({super.key});
@@ -1492,8 +1494,35 @@ class _CreateExistingLoanScreenState
 
       if (!mounted) return;
 
-      _showSuccess('Existing loan recorded successfully.');
-      Navigator.of(context).pop(true);
+      final receipt = result['data']?['receipt'] ?? result['receipt'];
+
+      SuccessDialog.show(
+        context: context,
+        title: 'Pawn Loan Created Successfully',
+        message: 'The pawn loan has been saved successfully.',
+        onOk: () {
+          Navigator.of(context).pop(true);
+        },
+        printLabel: 'Print Receipt',
+        onPrint: () {
+          Navigator.of(context).pop(true);
+          if (receipt != null) {
+            showDialog(
+              context: context,
+              builder: (_) {
+                return Dialog(
+                  insetPadding: const EdgeInsets.all(10),
+                  child: A4ReceiptViewer(
+                    receiptData: receipt is Map<String, dynamic>
+                        ? receipt
+                        : Map<String, dynamic>.from(receipt as Map),
+                  ),
+                );
+              },
+            );
+          }
+        },
+      );
 
     } catch (e) {
       if (!mounted) return;
