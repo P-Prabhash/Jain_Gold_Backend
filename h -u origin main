@@ -1,0 +1,17 @@
+* [33m727e256[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m Fix admin credential update flow and login verification
+* [33m5a20cbe[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Final Ui Commit
+* [33m4a1cfa8[m Fina settletement of fee
+* [33ma476e3a[m Settle fee new changes things
+* [33mc2475b7[m Settle fee new change
+* [33m8646b97[m Settle fee new change
+*   [33me9833fb[m Merge remote-tracking branch 'origin/main'
+[32m|[m[33m\[m  
+[32m|[m * [33m99a0458[m Strictly block 'admin' password and force update database hash to admin123
+* [33m|[m [33m607f18e[m Strictly block 'admin' password and force update database hash to admin123
+[33m|[m[33m/[m  
+* [33m988168a[m Restrict default admin password strictly to admin123
+* [33m85f3b31[m Fix syntax error in receipts.js
+* [33m3efb864[m Fix customer and gold item image retrieval, image formatting helper, and upload handling
+* [33m5a60eda[m Add Swagger API docs, Aadhaar duplicate validation and receipt API enhancement
+* [33mc86f242[m Fix SQL quote syntax, parameter aliases and date parsing
+* [33maf0af38[m Fix loan creation payload parsing and date sanitization for Flutter web
