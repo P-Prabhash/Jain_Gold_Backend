@@ -3,7 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { getPool } = require('../config/database');
-const { JWT_SECRET } = require('../config/auth');
+const { JWT_SECRET, createAuthToken } = require('../config/auth');
 const { requirePermission } = require('../middleware/authMiddleware');
 
 async function ensureSettingsTable(db) {
@@ -92,9 +92,10 @@ router.post(['/save', '/save.php'], requirePermission('settings.edit'), async (r
 // POST /settings/update_admin_credentials (.php)
 // ============================================================
 router.post(['/update_admin_credentials', '/update_admin_credentials.php'], requirePermission('settings.edit'), async (req, res) => {
-  const currentPassword = String(req.body.current_password || '').trim();
-  const newUsername = String(req.body.new_username || '').trim();
-  const newPassword = String(req.body.new_password || '').trim();
+  const currentPassword = String(req.body.current_password || req.body.currentPassword || req.body.old_password || req.body.oldPassword || '').trim();
+  const newUsername = String(req.body.new_username || req.body.newUsername || req.body.username || '').trim();
+  const newPassword = String(req.body.new_password || req.body.newPassword || req.body.password || '').trim();
+  const confirmPassword = String(req.body.confirm_password || req.body.confirmPassword || '').trim();
 
   if (!currentPassword) {
     return res.status(422).json({ success: false, message: 'Current password is required.' });
@@ -110,7 +111,6 @@ router.post(['/update_admin_credentials', '/update_admin_credentials.php'], requ
 
     const adminUser = adminRows[0];
     const hash = String(adminUser.password_hash || '').trim();
-    const uname = String(adminUser.username || '').trim().toLowerCase();
 
     let passwordMatch = false;
     if (hash && hash.length > 0) {
@@ -119,26 +119,30 @@ router.post(['/update_admin_credentials', '/update_admin_credentials.php'], requ
       } catch (e) {
         passwordMatch = false;
       }
-      if (!passwordMatch) {
-        passwordMatch = (hash === currentPassword);
-      }
-    }
-
-    if (!passwordMatch && (uname === 'admin' || adminUser.role === 'ADMIN')) {
-      if (currentPassword === 'admin123' || currentPassword === 'ADMIN123') {
-        passwordMatch = true;
-      }
     }
 
     if (!passwordMatch) {
       return res.status(401).json({ success: false, message: 'Current password is incorrect.' });
     }
 
+    if (!newUsername && !newPassword) {
+      return res.status(422).json({ success: false, message: 'New username or new password is required.' });
+    }
+
+    if (newPassword) {
+      if (newPassword.length < 6) {
+        return res.status(422).json({ success: false, message: 'New password must contain at least 6 characters.' });
+      }
+      if (confirmPassword && newPassword !== confirmPassword) {
+        return res.status(422).json({ success: false, message: 'New password and confirm password do not match.' });
+      }
+    }
+
     let updatedUsername = adminUser.username;
     if (newUsername && newUsername.toLowerCase() !== adminUser.username.toLowerCase()) {
       const [dup] = await db.query('SELECT id FROM users WHERE LOWER(username) = LOWER(?) AND id != ?', [newUsername, req.user.id]);
       if (dup.length > 0) {
-        return res.status(409).json({ success: false, message: 'User ID / Username is already taken.' });
+        return res.status(409).json({ success: false, message: 'Username is already taken by another user.' });
       }
       updatedUsername = newUsername;
     }
@@ -148,16 +152,25 @@ router.post(['/update_admin_credentials', '/update_admin_credentials.php'], requ
       updatedHash = bcrypt.hashSync(newPassword, 10);
     }
 
-    await db.query(
+    const [updateRes] = await db.query(
       'UPDATE users SET username = ?, password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
       [updatedUsername, updatedHash, req.user.id]
     );
 
-    const newToken = jwt.sign(
-      { sub: req.user.id, username: updatedUsername, role: adminUser.role },
-      JWT_SECRET,
-      { expiresIn: '24h' }
-    );
+    if (updateRes.affectedRows === 0) {
+      return res.status(500).json({ success: false, message: 'Failed to update credentials in database.' });
+    }
+
+    // Record audit log
+    try {
+      await db.query(
+        `INSERT INTO audit_logs (user_id, username, action, module_name, reference_type, reference_id, description)
+         VALUES (?, ?, 'UPDATE_CREDENTIALS', 'Settings', 'USER', ?, 'Admin credentials updated successfully')`,
+        [req.user.id, updatedUsername, String(req.user.id)]
+      );
+    } catch (e) {
+      // ignore
+    }
 
     const updatedUserPayload = {
       id: req.user.id,
@@ -167,9 +180,11 @@ router.post(['/update_admin_credentials', '/update_admin_credentials.php'], requ
       status: adminUser.status
     };
 
+    const newToken = createAuthToken(updatedUserPayload);
+
     return res.json({
       success: true,
-      message: 'ADMIN credentials updated successfully.',
+      message: 'ADMIN credentials updated successfully. Please log in with your new credentials.',
       token: newToken,
       user: updatedUserPayload,
       data: {
