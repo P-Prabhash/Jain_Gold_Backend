@@ -246,10 +246,12 @@ router.get(['/get', '/get.php', '/:receiptId'], requirePermission('receipt.view'
     return res.json({
       success: true,
       data: {
+        ...enriched,
         receipt_no: receipt ? receipt.receipt_no : (enriched.receipt_no || 'RCP-PAY-DEFAULT'),
         receipt_type: receipt ? receipt.receipt_type : (enriched.receipt_type || 'PAYMENT'),
         generated_at: receipt ? receipt.generated_at : new Date().toISOString(),
-        receipt_data: enriched
+        receipt_data: enriched,
+        receipt: enriched
       }
     });
 
