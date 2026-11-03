@@ -319,11 +319,47 @@ router.post(['/create', '/create.php'], requirePermission('payment.create'), asy
     conn.release();
 
     const [createdPayment] = await db.query('SELECT * FROM payments WHERE id = ?', [paymentId]);
+    const pmtObj = createdPayment[0] || {};
+
+    const paymentPayload = {
+      ...pmtObj,
+      payment_id: paymentId,
+      paymentId: paymentId,
+      loan_id: loanId,
+      loanId: loanId,
+      loan_no: loan.loan_no,
+      loanNo: loan.loan_no,
+      manual_loan_no: loan.manual_loan_no || '',
+      display_loan_no: loan.manual_loan_no || loan.loan_no,
+      customer_id: customerId,
+      customerId: customerId,
+      customer_name: customer.name,
+      customerName: customer.name,
+      principal_amount: principal,
+      loanPrincipal: principal,
+      amount: principalPayment,
+      principal_payment: principalPayment,
+      principalPayment: principalPayment,
+      manual_interest: manualInterest,
+      interestAmount: manualInterest,
+      total_amount_received: totalAmountReceived,
+      total_due: totalDue,
+      totalLoanAmount: totalDue,
+      total_paid: newTotalPaid,
+      amountPaid: newTotalPaid,
+      remaining_balance: newRemainingBalance,
+      outstandingBalance: newRemainingBalance,
+      payment_mode: paymentMode,
+      paymentMode: paymentMode,
+      payment_date: paymentDate,
+      paymentDate: paymentDate,
+      date: paymentDate
+    };
 
     return res.status(201).json({
       success: true,
       message: 'Payment recorded successfully.',
-      data: createdPayment[0],
+      data: paymentPayload,
       receipt: receiptData
     });
 

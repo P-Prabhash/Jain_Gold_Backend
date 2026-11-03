@@ -402,15 +402,43 @@ async function handleCreateLoan(req, res, defaultLoanType = 'NEW_LOAN') {
     conn.release();
 
     const [createdLoan] = await db.query('SELECT * FROM loans WHERE id = ?', [loanId]);
+    const loanObj = createdLoan[0] || {};
+
+    const loanPayload = {
+      ...loanObj,
+      loan_id: loanId,
+      loanId: loanId,
+      loan_no: loanNo,
+      loanNo: loanNo,
+      manual_loan_no: manualLoanNo || loanObj.manual_loan_no || '',
+      display_loan_no: manualLoanNo || loanNo,
+      customer_id: customerId,
+      customerId: customerId,
+      customer_name: customer.name,
+      customerName: customer.name,
+      principal_amount: principalAmount,
+      loanPrincipal: principalAmount,
+      initial_interest: initialInterest,
+      interest_amount: initialInterest,
+      interestAmount: initialInterest,
+      additional_amount: 0.00,
+      additionalLoanAmount: 0.00,
+      total_due: totalDue,
+      totalLoanAmount: totalDue,
+      total_paid: totalPaid,
+      amountPaid: totalPaid,
+      remaining_balance: remainingBalance,
+      outstandingBalance: remainingBalance,
+      opened_date: openedDate,
+      openedDate: openedDate,
+      receipt: receiptData,
+      receipt_no: receiptNo
+    };
 
     return res.status(201).json({
       success: true,
       message: 'Pawn loan recorded successfully.',
-      data: {
-        ...createdLoan[0],
-        receipt: receiptData,
-        receipt_no: receiptNo
-      }
+      data: loanPayload
     });
 
   } catch (err) {

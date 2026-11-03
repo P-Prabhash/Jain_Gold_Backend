@@ -15,9 +15,18 @@ function enrichReceiptPayload(req, data, loan, customer, payment, collateral) {
     (data.principal_amount || (data.financial ? data.financial.principal_amount : (data.principal_paid || 0)))
   );
 
+  const interestAmount = parseFloat(
+    loan ? (parseFloat(loan.total_interest || 0) + parseFloat(loan.manual_final_interest || 0)) :
+    (data.total_interest || data.initial_interest || data.manual_final_interest || (data.financial ? (data.financial.total_interest || data.financial.initial_interest || 0) : 0))
+  );
+
+  const additionalLoanAmount = parseFloat(
+    data.additional_amount || data.additional_loan_amount || (data.financial ? data.financial.additional_amount : 0)
+  );
+
   const totalDue = parseFloat(
     loan ? loan.total_due :
-    (data.total_due || (data.financial ? data.financial.total_due : (principal > 0 ? principal : currentPayment)))
+    (data.total_due || (data.financial ? data.financial.total_due : Math.round((principal + interestAmount + additionalLoanAmount) * 100) / 100))
   );
 
   const totalPaid = parseFloat(
@@ -27,7 +36,7 @@ function enrichReceiptPayload(req, data, loan, customer, payment, collateral) {
 
   const remaining = parseFloat(
     payment ? payment.remaining_balance :
-    (loan ? loan.remaining_balance : (data.remaining_balance !== undefined ? data.remaining_balance : (data.financial ? data.financial.remaining_balance : Math.max(0, totalDue - totalPaid))))
+    (loan ? loan.remaining_balance : (data.remaining_balance !== undefined ? data.remaining_balance : (data.financial ? data.financial.remaining_balance : Math.max(0, Math.round((totalDue - totalPaid) * 100) / 100))))
   );
 
   const previousPaid = parseFloat(
@@ -43,8 +52,10 @@ function enrichReceiptPayload(req, data, loan, customer, payment, collateral) {
 
   const customerObj = {
     id: customer ? customer.id : (data.customer ? data.customer.id : ''),
+    customer_id: customer ? customer.id : (data.customer ? data.customer.id : ''),
     customer_code: customer ? customer.customer_code : (data.customer ? (data.customer.customer_code || data.customer.customerCode) : (data.customer_code || '')),
     name: customer ? customer.name : (data.customer ? (data.customer.name || data.customer.full_name) : (data.customer_name || '')),
+    customer_name: customer ? customer.name : (data.customer ? (data.customer.name || data.customer.full_name) : (data.customer_name || '')),
     mobile: customer ? customer.mobile : (data.customer ? data.customer.mobile : (data.mobile || '')),
     address: customer ? customer.address : (data.customer ? data.customer.address : (data.address || '')),
     photo_url: formatPhotoUrl(req, customer ? customer.photo_url : (data.customer ? data.customer.photo_url : ''))
@@ -52,13 +63,21 @@ function enrichReceiptPayload(req, data, loan, customer, payment, collateral) {
 
   const fin = {
     principal_amount: principal,
+    loanPrincipal: principal,
+    interest_amount: interestAmount,
+    interestAmount: interestAmount,
+    additional_loan_amount: additionalLoanAmount,
+    additionalLoanAmount: additionalLoanAmount,
     total_due: totalDue,
+    totalLoanAmount: totalDue,
     payment_amount: currentPayment,
     current_payment: currentPayment,
     amount: currentPayment,
     previous_paid: previousPaid,
     total_paid: totalPaid,
+    amountPaid: totalPaid,
     remaining_balance: remaining,
+    outstandingBalance: remaining,
     payment_mode: paymentMode
   };
 
@@ -68,14 +87,29 @@ function enrichReceiptPayload(req, data, loan, customer, payment, collateral) {
     gold_photo_url: formatPhotoUrl(req, c.photo_url || c.gold_photo_url)
   }));
 
+  const loanNo = loan ? loan.loan_no : (data.loan_no || '');
+  const manualLoanNo = loan ? loan.manual_loan_no : (data.manual_loan_no || '');
+  const displayLoanNo = manualLoanNo || loanNo;
+
   return {
     ...data,
-    loan_no: loan ? loan.loan_no : (data.loan_no || ''),
+    loan_id: loan ? loan.id : (data.loan_id || 0),
+    loanId: loan ? loan.id : (data.loan_id || 0),
+    loan_no: loanNo,
+    loanNo: loanNo,
+    manual_loan_no: manualLoanNo,
+    manualLoanNo: manualLoanNo,
+    display_loan_no: displayLoanNo,
     loan_type: loan ? loan.loan_type : (data.loan_type || 'NEW_LOAN'),
     opened_date: openedDate,
+    openedDate: openedDate,
     date: paymentDate || openedDate,
+    payment_date: paymentDate || openedDate,
+    paymentDate: paymentDate || openedDate,
     time: paymentTime,
     customer: customerObj,
+    customer_id: customerObj.id,
+    customer_name: customerObj.name,
     financial: fin,
     loan_financial: fin,
     payment: {
@@ -87,17 +121,26 @@ function enrichReceiptPayload(req, data, loan, customer, payment, collateral) {
       previous_paid: previousPaid,
       total_paid: totalPaid,
       new_total_paid: totalPaid,
+      amountPaid: totalPaid,
       remaining_balance: remaining,
+      outstandingBalance: remaining,
       payment_mode: paymentMode,
       payment_date: paymentDate,
       payment_time: paymentTime
     },
     principal_amount: principal,
+    loanPrincipal: principal,
+    interest_amount: interestAmount,
+    interestAmount: interestAmount,
     total_due: totalDue,
+    totalLoanAmount: totalDue,
     previous_paid: previousPaid,
     current_payment: currentPayment,
     total_paid: totalPaid,
+    amountPaid: totalPaid,
     remaining_balance: remaining,
+    outstandingBalance: remaining,
+    payment_mode: paymentMode,
     collateral: formattedCollateral
   };
 }
