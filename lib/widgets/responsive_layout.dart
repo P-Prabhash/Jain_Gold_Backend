@@ -1,14 +1,15 @@
 // lib/widgets/responsive_layout.dart
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../config/constants.dart';
 import '../config/theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/customer_provider.dart';
-import '../providers/dashboard_provider.dart';
 import '../providers/gold_provider.dart';
 import '../providers/loan_provider.dart';
 import '../providers/payment_provider.dart';
@@ -35,6 +36,77 @@ Future<T?> showResponsiveDialog<T>({
   );
 }
 
+// ============================================================================
+// INDIAN STANDARD TIME (IST, UTC+05:30) CLOCK & DATE WIDGET
+// ============================================================================
+
+class IndianClockWidget extends StatefulWidget {
+  final bool isMobile;
+  const IndianClockWidget({super.key, this.isMobile = false});
+
+  @override
+  State<IndianClockWidget> createState() => _IndianClockWidgetState();
+}
+
+class _IndianClockWidgetState extends State<IndianClockWidget> {
+  Timer? _timer;
+  late DateTime _istNow;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateTime();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _updateTime());
+  }
+
+  void _updateTime() {
+    if (!mounted) return;
+    setState(() {
+      // Calculate Indian Standard Time (UTC+05:30)
+      _istNow = DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 30));
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final timeStr = DateFormat('hh:mm a').format(_istNow);
+    final dateStr = DateFormat('dd MMM yyyy').format(_istNow);
+
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(
+          timeStr,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: widget.isMobile ? 11.5 : 13,
+            fontWeight: FontWeight.w800,
+            color: AppTheme.darkNavy,
+          ),
+        ),
+        Text(
+          dateStr,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: widget.isMobile ? 9.5 : 10.5,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.silverDark,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ============================================================================
+// RESPONSIVE LAYOUT WIDGET
+// ============================================================================
+
 class ResponsiveLayout extends StatefulWidget {
   final int selectedIndex;
   final ValueChanged<int> onIndexChanged;
@@ -52,18 +124,15 @@ class ResponsiveLayout extends StatefulWidget {
   });
 
   @override
-  State<ResponsiveLayout> createState() =>
-      _ResponsiveLayoutState();
+  State<ResponsiveLayout> createState() => _ResponsiveLayoutState();
 }
 
-class _ResponsiveLayoutState
-    extends State<ResponsiveLayout> {
+class _ResponsiveLayoutState extends State<ResponsiveLayout> {
   // ==========================================================================
   // GLOBAL SEARCH
   // ==========================================================================
 
-  final TextEditingController _globalSearchCtrl =
-      TextEditingController();
+  final TextEditingController _globalSearchCtrl = TextEditingController();
 
   // ==========================================================================
   // NAVIGATION ITEMS
@@ -138,17 +207,13 @@ class _ResponsiveLayoutState
 
   Map<String, dynamic>? _loggedInUser(BuildContext context) {
     final authUser = context.read<AuthProvider>().currentUser;
-
     if (authUser != null) {
       return Map<String, dynamic>.from(authUser);
     }
-
     final apiUser = ApiService.currentUser;
-
     if (apiUser != null) {
       return Map<String, dynamic>.from(apiUser);
     }
-
     return null;
   }
 
@@ -163,10 +228,7 @@ class _ResponsiveLayoutState
 
   String? _getCurrentRole(BuildContext context) {
     final user = _loggedInUser(context);
-
-    if (user == null) {
-      return null;
-    }
+    if (user == null) return null;
 
     final candidates = <dynamic>[
       user['role'],
@@ -178,17 +240,10 @@ class _ResponsiveLayoutState
     ];
 
     for (final candidate in candidates) {
-      if (candidate == null) {
-        continue;
-      }
-
+      if (candidate == null) continue;
       final role = _normalizeRole(candidate);
-
-      if (role.isNotEmpty) {
-        return role;
-      }
+      if (role.isNotEmpty) return role;
     }
-
     return null;
   }
 
@@ -212,24 +267,16 @@ class _ResponsiveLayoutState
         .replaceAll(RegExp(r'^_+|_+$'), '');
   }
 
-  Set<String> _currentPermissionCodes(
-    BuildContext context,
-  ) {
+  Set<String> _currentPermissionCodes(BuildContext context) {
     final user = _loggedInUser(context);
-
-    if (user == null) {
-      return <String>{};
-    }
+    if (user == null) return <String>{};
 
     final codes = <String>{};
-
     final rawCodes = user['permission_codes'];
 
     if (rawCodes is List) {
       for (final code in rawCodes) {
-        final normalized =
-            _normalizePermissionCode(code);
-
+        final normalized = _normalizePermissionCode(code);
         if (normalized.isNotEmpty) {
           codes.add(normalized);
         }
@@ -237,79 +284,39 @@ class _ResponsiveLayoutState
     }
 
     final rawPermissions = user['permissions'];
-
     if (rawPermissions is List) {
       for (final item in rawPermissions) {
-        if (item is! Map) {
-          continue;
-        }
-
-        final assigned =
-            item['assigned'] == true ||
+        if (item is! Map) continue;
+        final assigned = item['assigned'] == true ||
             item['allowed'] == true ||
             item['is_assigned'] == true ||
             item['selected'] == true;
 
-        // IMPORTANT:
-        // The backend returns the COMPLETE permission catalogue.
-        // Only permissions explicitly assigned by ADMIN may be
-        // added to STAFF navigation access.
-        if (!assigned) {
-          continue;
-        }
+        if (!assigned) continue;
 
-        final code =
-            item['permission_code'] ??
-            item['code'] ??
-            item['permission_key'];
-
-        final normalized =
-            _normalizePermissionCode(code);
-
+        final code = item['permission_code'] ?? item['code'] ?? item['permission_key'];
+        final normalized = _normalizePermissionCode(code);
         if (normalized.isNotEmpty) {
           codes.add(normalized);
         }
       }
     }
-
     return codes;
   }
 
-  bool _hasPermission(
-    BuildContext context,
-    String? permission,
-  ) {
-    // ADMIN has unrestricted access.
-    if (_isAdmin(context)) {
-      return true;
-    }
+  bool _hasPermission(BuildContext context, String? permission) {
+    if (_isAdmin(context)) return true;
+    if (permission == null || permission.trim().isEmpty) return false;
 
-    if (permission == null ||
-        permission.trim().isEmpty) {
-      return false;
-    }
-
-    final required =
-        _normalizePermissionCode(permission);
-
-    return _currentPermissionCodes(context)
-        .contains(required);
+    final required = _normalizePermissionCode(permission);
+    return _currentPermissionCodes(context).contains(required);
   }
 
-  bool _canOpenNavItem(
-    BuildContext context,
-    int index,
-    Map<String, dynamic> item,
-  ) {
-    // User Management is ALWAYS ADMIN-only.
+  bool _canOpenNavItem(BuildContext context, int index, Map<String, dynamic> item) {
     if (_isUserManagementIndex(index)) {
       return _isAdmin(context);
     }
-
-    return _hasPermission(
-      context,
-      item['permission'],
-    );
+    return _hasPermission(context, item['permission']);
   }
 
   void _triggerGlobalSearch(String query) {
@@ -348,22 +355,11 @@ class _ResponsiveLayoutState
     }
   }
 
-  void _handleNavigation(
-    BuildContext context,
-    int index,
-  ) {
-    if (index < 0 ||
-        index >= _navItems.length) {
-      return;
-    }
+  void _handleNavigation(BuildContext context, int index) {
+    if (index < 0 || index >= _navItems.length) return;
 
     final item = _navItems[index];
-
-    if (!_canOpenNavItem(
-      context,
-      index,
-      item,
-    )) {
+    if (!_canOpenNavItem(context, index, item)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -375,38 +371,19 @@ class _ResponsiveLayoutState
       );
       return;
     }
-
     widget.onIndexChanged(index);
   }
 
-  List<MapEntry<int, Map<String, dynamic>>> _visibleNavItems(
-    BuildContext context,
-  ) {
-    return _navItems.asMap().entries.where(
-      (entry) {
-        return _canOpenNavItem(
-          context,
-          entry.key,
-          entry.value,
-        );
-      },
-    ).toList();
+  List<MapEntry<int, Map<String, dynamic>>> _visibleNavItems(BuildContext context) {
+    return _navItems.asMap().entries.where((entry) {
+      return _canOpenNavItem(context, entry.key, entry.value);
+    }).toList();
   }
 
-  int _visibleSelectedIndex(
-    BuildContext context,
-    List<MapEntry<int, Map<String, dynamic>>> items,
-  ) {
-    final position = items.indexWhere(
-      (entry) => entry.key == widget.selectedIndex,
-    );
-
+  int _visibleSelectedIndex(BuildContext context, List<MapEntry<int, Map<String, dynamic>>> items) {
+    final position = items.indexWhere((entry) => entry.key == widget.selectedIndex);
     return position >= 0 ? position : 0;
   }
-
-  // ==========================================================================
-  // DISPOSE
-  // ==========================================================================
 
   @override
   void dispose() {
@@ -414,33 +391,16 @@ class _ResponsiveLayoutState
     super.dispose();
   }
 
-  // ==========================================================================
-  // BUILD
-  // ==========================================================================
-
   @override
   Widget build(BuildContext context) {
-    final width =
-        MediaQuery.of(context).size.width;
+    final width = MediaQuery.of(context).size.width;
 
-    final isDesktop =
-        width >= AppConstants.desktopBreakpoint;
+    final isDesktop = width >= AppConstants.desktopBreakpoint;
+    final isLaptop = width >= AppConstants.tabletBreakpoint && width < AppConstants.desktopBreakpoint;
+    final isTablet = width >= AppConstants.mobileBreakpoint && width < AppConstants.tabletBreakpoint;
+    final isMobile = width < AppConstants.mobileBreakpoint;
 
-    final isLaptop =
-        width >= AppConstants.tabletBreakpoint &&
-            width < AppConstants.desktopBreakpoint;
-
-    final isTablet =
-        width >= AppConstants.mobileBreakpoint &&
-            width < AppConstants.tabletBreakpoint;
-
-    final isMobile =
-        width < AppConstants.mobileBreakpoint;
-
-    // Guard against stale/externally supplied index 9 for non-ADMIN users.
-    // This does not alter the normal ADMIN flow.
-    if (_isUserManagementIndex(widget.selectedIndex) &&
-        !_isAdmin(context)) {
+    if (_isUserManagementIndex(widget.selectedIndex) && !_isAdmin(context)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         widget.onIndexChanged(0);
@@ -450,15 +410,12 @@ class _ResponsiveLayoutState
     if (isDesktop || isLaptop) {
       return _buildDesktopLayout(context);
     }
-
     if (isTablet) {
       return _buildTabletLayout(context);
     }
-
     if (isMobile) {
       return _buildMobileLayout(context);
     }
-
     return _buildDesktopLayout(context);
   }
 
@@ -466,16 +423,11 @@ class _ResponsiveLayoutState
   // DESKTOP / LAPTOP
   // ==========================================================================
 
-  Widget _buildDesktopLayout(
-    BuildContext context,
-  ) {
+  Widget _buildDesktopLayout(BuildContext context) {
     return Scaffold(
       body: Row(
         children: [
-          // ====================================================================
           // LEFT SIDEBAR
-          // ====================================================================
-
           Container(
             width: 250,
             decoration: const BoxDecoration(
@@ -489,15 +441,9 @@ class _ResponsiveLayoutState
             ),
             child: Column(
               children: [
-                // ==============================================================
                 // BRAND HEADER
-                // ==============================================================
-
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 22,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
                   decoration: const BoxDecoration(
                     border: Border(
                       bottom: BorderSide(
@@ -555,15 +501,10 @@ class _ResponsiveLayoutState
                   ),
                 ),
 
-                // ==============================================================
                 // NAVIGATION
-                // ==============================================================
-
                 Expanded(
                   child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 14,
-                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     itemCount: _visibleNavItems(context).length,
                     itemBuilder: (context, visibleIndex) {
                       final entry = _visibleNavItems(context)[visibleIndex];
@@ -572,14 +513,9 @@ class _ResponsiveLayoutState
                       final isSelected = widget.selectedIndex == originalIndex;
 
                       return Container(
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 4,
-                        ),
+                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                         decoration: BoxDecoration(
-                          color: isSelected
-                              ? const Color(0xFF262B38)
-                              : Colors.transparent,
+                          color: isSelected ? const Color(0xFF262B38) : Colors.transparent,
                           borderRadius: BorderRadius.circular(12),
                           border: isSelected
                               ? Border.all(
@@ -590,26 +526,14 @@ class _ResponsiveLayoutState
                         ),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(12),
-                          onTap: () {
-                            _handleNavigation(
-                              context,
-                              originalIndex,
-                            );
-                          },
+                          onTap: () => _handleNavigation(context, originalIndex),
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12.5,
-                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12.5),
                             child: Row(
                               children: [
                                 Icon(
-                                  isSelected
-                                      ? item['activeIcon']
-                                      : item['icon'],
-                                  color: isSelected
-                                      ? AppTheme.goldPrimary
-                                      : const Color(0xFF94A3B8),
+                                  isSelected ? item['activeIcon'] : item['icon'],
+                                  color: isSelected ? AppTheme.goldPrimary : const Color(0xFF94A3B8),
                                   size: 21,
                                 ),
                                 const SizedBox(width: 14),
@@ -617,12 +541,8 @@ class _ResponsiveLayoutState
                                   child: Text(
                                     item['title'],
                                     style: GoogleFonts.plusJakartaSans(
-                                      color: isSelected
-                                          ? Colors.white
-                                          : const Color(0xFFCBD5E1),
-                                      fontWeight: isSelected
-                                          ? FontWeight.w800
-                                          : FontWeight.w600,
+                                      color: isSelected ? Colors.white : const Color(0xFFCBD5E1),
+                                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                                       fontSize: 14,
                                     ),
                                   ),
@@ -636,10 +556,7 @@ class _ResponsiveLayoutState
                   ),
                 ),
 
-                // ==============================================================
                 // LOGOUT
-                // ==============================================================
-
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: const BoxDecoration(
@@ -652,21 +569,12 @@ class _ResponsiveLayoutState
                   ),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(12),
-                    onTap: () {
-                      _logout(context);
-                    },
+                    onTap: () => _logout(context),
                     child: const Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 13,
-                      ),
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 13),
                       child: Row(
                         children: [
-                          Icon(
-                            Icons.logout,
-                            color: Color(0xFFEF4444),
-                            size: 22,
-                          ),
+                          Icon(Icons.logout, color: Color(0xFFEF4444), size: 22),
                           SizedBox(width: 14),
                           Text(
                             'Logout',
@@ -685,31 +593,19 @@ class _ResponsiveLayoutState
             ),
           ),
 
-          // ====================================================================
           // MAIN WORK AREA
-          // ====================================================================
-
           Expanded(
             child: Column(
               children: [
-                // =================================================================
                 // TOP HEADER
-                // =================================================================
-
                 Container(
                   height: 64,
-                  padding:
-                      const EdgeInsets
-                          .symmetric(
-                    horizontal: 24,
-                  ),
-                  decoration:
-                      const BoxDecoration(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  decoration: const BoxDecoration(
                     color: Colors.white,
                     border: Border(
                       bottom: BorderSide(
-                        color:
-                            AppTheme.silverBorder,
+                        color: AppTheme.silverBorder,
                         width: 0.8,
                       ),
                     ),
@@ -718,56 +614,30 @@ class _ResponsiveLayoutState
                     children: [
                       Text(
                         widget.title,
-                        style: GoogleFonts
-                            .plusJakartaSans(
+                        style: GoogleFonts.plusJakartaSans(
                           fontSize: 18,
-                          fontWeight:
-                              FontWeight.w800,
-                          color:
-                              AppTheme.darkNavy,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.darkNavy,
                         ),
                       ),
 
-                      const SizedBox(
-                        width: 32,
-                      ),
+                      const SizedBox(width: 32),
 
-                      // =========================================================
                       // GLOBAL SEARCH
-                      // =========================================================
-
                       Expanded(
                         child: Container(
                           height: 38,
-                          constraints:
-                              const BoxConstraints(
-                            maxWidth: 380,
-                          ),
-                          decoration:
-                              BoxDecoration(
-                            color:
-                                AppTheme
-                                    .silverLight,
-                            borderRadius:
-                                BorderRadius
-                                    .circular(
-                              8,
-                            ),
-                            border:
-                                Border.all(
-                              color: AppTheme
-                                  .silverBorder,
-                            ),
+                          constraints: const BoxConstraints(maxWidth: 380),
+                          decoration: BoxDecoration(
+                            color: AppTheme.silverLight,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppTheme.silverBorder),
                           ),
                           child: TextField(
                             controller: _globalSearchCtrl,
                             decoration: InputDecoration(
                               hintText: 'Search customer, loan no, mobile...',
-                              prefixIcon: const Icon(
-                                Icons.search,
-                                size: 18,
-                                color: AppTheme.silverDark,
-                              ),
+                              prefixIcon: const Icon(Icons.search, size: 18, color: AppTheme.silverDark),
                               suffixIcon: _globalSearchCtrl.text.isNotEmpty
                                   ? IconButton(
                                       icon: const Icon(Icons.clear, size: 18, color: AppTheme.silverDark),
@@ -779,9 +649,7 @@ class _ResponsiveLayoutState
                                     )
                                   : null,
                               border: InputBorder.none,
-                              contentPadding: const EdgeInsets.symmetric(
-                                vertical: 8,
-                              ),
+                              contentPadding: const EdgeInsets.symmetric(vertical: 8),
                             ),
                             onChanged: (value) {
                               _triggerGlobalSearch(value);
@@ -793,57 +661,23 @@ class _ResponsiveLayoutState
 
                       const Spacer(),
 
-                      // =========================================================
-                      // REFRESH
-                      // =========================================================
+                      // REPLACED REFRESH ICON WITH LIVE IST TIME & DATE DISPLAY
+                      const IndianClockWidget(),
 
-                      IconButton(
-                        tooltip:
-                            'Refresh ERP Data',
-                        icon:
-                            const Icon(
-                          Icons.refresh,
-                          color:
-                              AppTheme.darkNavy,
-                        ),
-                        onPressed: () {
-                          context
-                              .read<
-                                  DashboardProvider>()
-                              .fetchSummary();
-                        },
-                      ),
+                      const SizedBox(width: 16),
 
-                      const SizedBox(
-                        width: 12,
-                      ),
+                      if (widget.actions != null) ...widget.actions!,
 
-                      if (widget.actions !=
-                          null)
-                        ...widget.actions!,
+                      const SizedBox(width: 12),
 
-                      const SizedBox(
-                        width: 12,
-                      ),
-
-                      // =========================================================
                       // PROFILE
-                      // =========================================================
-
-                      _buildProfileBadge(
-                        context,
-                      ),
+                      _buildProfileBadge(context),
                     ],
                   ),
                 ),
 
-                // =================================================================
                 // CONTENT
-                // =================================================================
-
-                Expanded(
-                  child: widget.child,
-                ),
+                Expanded(child: widget.child),
               ],
             ),
           ),
@@ -852,13 +686,7 @@ class _ResponsiveLayoutState
     );
   }
 
-  // ==========================================================================
-  // PROFILE BADGE
-  // ==========================================================================
-
-  Widget _buildProfileBadge(
-    BuildContext context,
-  ) {
+  Widget _buildProfileBadge(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
     final user = authProvider.currentUser;
 
@@ -869,10 +697,7 @@ class _ResponsiveLayoutState
     final String badgeLetter = role.isNotEmpty ? role[0] : 'A';
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 14,
-        vertical: 7,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
       decoration: BoxDecoration(
         color: AppTheme.darkNavy,
         borderRadius: BorderRadius.circular(20),
@@ -916,20 +741,13 @@ class _ResponsiveLayoutState
   // TABLET
   // ==========================================================================
 
-  Widget _buildTabletLayout(
-    BuildContext context,
-  ) {
+  Widget _buildTabletLayout(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title),
         actions: [
-          IconButton(
-            tooltip: 'Refresh ERP Data',
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              context.read<DashboardProvider>().fetchSummary();
-            },
-          ),
+          const Center(child: IndianClockWidget(isMobile: true)),
+          const SizedBox(width: 12),
           if (widget.actions != null && widget.actions!.isNotEmpty)
             Flexible(
               child: SingleChildScrollView(
@@ -947,85 +765,40 @@ class _ResponsiveLayoutState
         children: [
           Builder(
             builder: (navContext) {
-              final visibleItems =
-                  _visibleNavItems(navContext);
+              final visibleItems = _visibleNavItems(navContext);
 
               return NavigationRail(
-                backgroundColor:
-                    AppTheme.darkNavy,
-                selectedIndex:
-                    _visibleSelectedIndex(
-                  navContext,
-                  visibleItems,
-                ),
+                backgroundColor: AppTheme.darkNavy,
+                selectedIndex: _visibleSelectedIndex(navContext, visibleItems),
                 onDestinationSelected: (visibleIndex) {
-                  final originalIndex =
-                      visibleItems[visibleIndex].key;
-
-                  _handleNavigation(
-                    navContext,
-                    originalIndex,
-                  );
+                  final originalIndex = visibleItems[visibleIndex].key;
+                  _handleNavigation(navContext, originalIndex);
                 },
-            labelType:
-                NavigationRailLabelType.all,
-            selectedIconTheme:
-                const IconThemeData(
-              color:
-                  AppTheme.goldPrimary,
-            ),
-            unselectedIconTheme:
-                const IconThemeData(
-              color:
-                  AppTheme.silverPrimary,
-            ),
-            selectedLabelTextStyle:
-                const TextStyle(
-              color:
-                  AppTheme.goldPrimary,
-              fontSize: 11,
-              fontWeight:
-                  FontWeight.bold,
-            ),
-            unselectedLabelTextStyle:
-                const TextStyle(
-              color:
-                  AppTheme.silverPrimary,
-              fontSize: 10,
-            ),
-                destinations:
-                    visibleItems.map(
-                  (entry) {
-                    final item = entry.value;
-
-                    return NavigationRailDestination(
-                      icon: Icon(
-                        item['icon'],
-                      ),
-                      selectedIcon:
-                          Icon(
-                        item['activeIcon'],
-                      ),
-                      label: Text(
-                        item['title'],
-                      ),
-                    );
-                  },
-                ).toList(),
+                labelType: NavigationRailLabelType.all,
+                selectedIconTheme: const IconThemeData(color: AppTheme.goldPrimary),
+                unselectedIconTheme: const IconThemeData(color: AppTheme.silverPrimary),
+                selectedLabelTextStyle: const TextStyle(
+                  color: AppTheme.goldPrimary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+                unselectedLabelTextStyle: const TextStyle(
+                  color: AppTheme.silverPrimary,
+                  fontSize: 10,
+                ),
+                destinations: visibleItems.map((entry) {
+                  final item = entry.value;
+                  return NavigationRailDestination(
+                    icon: Icon(item['icon']),
+                    selectedIcon: Icon(item['activeIcon']),
+                    label: Text(item['title']),
+                  );
+                }).toList(),
               );
             },
           ),
-
-          const VerticalDivider(
-            thickness: 1,
-            width: 1,
-            color:
-                AppTheme.silverBorder,
-          ),
-
-          Expanded(
-            child: widget.child,
-          ),
+          const VerticalDivider(thickness: 1, width: 1, color: AppTheme.silverBorder),
+          Expanded(child: widget.child),
         ],
       ),
     );
@@ -1035,52 +808,22 @@ class _ResponsiveLayoutState
   // MOBILE
   // ==========================================================================
 
-  Widget _buildMobileLayout(
-    BuildContext context,
-  ) {
-    /*
-     * Mobile bottom navigation uses the original MainScreen indices,
-     * but only shows tabs the current user is allowed to access.
-     */
-    final bottomNavItems =
-        _navItems.asMap().entries.where(
-      (entry) {
-        const mobileIndices = <int>[
-          0,
-          1,
-          2,
-          3,
-        ];
+  Widget _buildMobileLayout(BuildContext context) {
+    final bottomNavItems = _navItems.asMap().entries.where((entry) {
+      const mobileIndices = <int>[0, 1, 2, 3];
+      return mobileIndices.contains(entry.key) && _canOpenNavItem(context, entry.key, entry.value);
+    }).toList();
 
-        return mobileIndices.contains(
-              entry.key,
-            ) &&
-            _canOpenNavItem(
-              context,
-              entry.key,
-              entry.value,
-            );
-      },
-    ).toList();
-
-    final bottomCurrentPosition =
-        bottomNavItems.indexWhere(
-      (entry) =>
-          entry.key ==
-          widget.selectedIndex,
+    final bottomCurrentPosition = bottomNavItems.indexWhere(
+      (entry) => entry.key == widget.selectedIndex,
     );
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.title),
+        title: Text(widget.title, style: const TextStyle(fontSize: 16)),
         actions: [
-          IconButton(
-            tooltip: 'Refresh ERP Data',
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              context.read<DashboardProvider>().fetchSummary();
-            },
-          ),
+          const Center(child: IndianClockWidget(isMobile: true)),
+          const SizedBox(width: 8),
           if (widget.actions != null && widget.actions!.isNotEmpty)
             Flexible(
               child: SingleChildScrollView(
@@ -1095,180 +838,129 @@ class _ResponsiveLayoutState
         ],
       ),
 
-      // ========================================================================
-      // MOBILE DRAWER
-      // ========================================================================
-
+      // COMPACT MOBILE DRAWER (NO SCROLLING ON STANDARD SIZES)
       drawer: Drawer(
-        child: ListView(
-          padding:
-              EdgeInsets.zero,
-          children: [
-            // ==============================================================
-            // DRAWER HEADER
-            // ==============================================================
+        width: 250,
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isVeryShort = constraints.maxHeight < 500;
 
-            DrawerHeader(
-              decoration: const BoxDecoration(
-                color: AppTheme.darkNavy,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
+              final drawerBody = Column(
                 children: [
-                  const Text(
-                    '🕉️',
-                    style: TextStyle(
-                      fontSize: 32,
-                      height: 1.0,
+                  // BRAND HEADER
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    color: AppTheme.darkNavy,
+                    child: Row(
+                      children: [
+                        const Text('🕉️', style: TextStyle(fontSize: 22, height: 1.0)),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'JAIN GOLD & PAWN',
+                                style: GoogleFonts.cinzel(
+                                  color: AppTheme.goldPrimary,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 12.5,
+                                  letterSpacing: 0.6,
+                                ),
+                              ),
+                              const Text(
+                                'Jain Gold & Pawn Shop',
+                                style: TextStyle(color: Colors.white70, fontSize: 10),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'JAIN GOLD & PAWN SHOP',
-                    style: GoogleFonts.cinzel(
-                      color: AppTheme.goldPrimary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
+
+                  // USER PROFILE BADGE
+                  _buildMobileProfile(context),
+
+                  const Divider(height: 1, thickness: 1),
+
+                  // MENU ITEMS COMPACT COLUMN
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: _visibleNavItems(context).map((entry) {
+                        final idx = entry.key;
+                        final item = entry.value;
+                        final isSelected = widget.selectedIndex == idx;
+
+                        return Material(
+                          color: Colors.transparent,
+                          child: ListTile(
+                            dense: true,
+                            visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
+                            leading: Icon(
+                              isSelected ? item['activeIcon'] : item['icon'],
+                              color: isSelected ? AppTheme.goldDark : AppTheme.darkNavy,
+                              size: 18,
+                            ),
+                            title: Text(
+                              item['title'],
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                color: isSelected ? AppTheme.goldDark : AppTheme.darkNavy,
+                              ),
+                            ),
+                            selected: isSelected,
+                            selectedTileColor: AppTheme.goldLight.withValues(alpha: 0.3),
+                            onTap: () {
+                              Navigator.pop(context);
+                              _handleNavigation(context, idx);
+                            },
+                          ),
+                        );
+                      }).toList(),
                     ),
                   ),
-                  const Text(
-                    'Pawn Loan & Gold Financing Management System',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 11,
+
+                  const Divider(height: 1, thickness: 1),
+
+                  // LOGOUT
+                  Material(
+                    color: Colors.transparent,
+                    child: ListTile(
+                      dense: true,
+                      visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                      leading: const Icon(Icons.logout, color: AppTheme.statusDanger, size: 18),
+                      title: const Text(
+                        'Logout',
+                        style: TextStyle(
+                          color: AppTheme.statusDanger,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      onTap: () => _logout(context),
                     ),
                   ),
                 ],
-              ),
-            ),
+              );
 
-            // ==============================================================
-            // USER PROFILE IN DRAWER
-            // ==============================================================
+              if (isVeryShort) {
+                return SingleChildScrollView(child: drawerBody);
+              }
 
-            _buildMobileProfile(
-              context,
-            ),
-
-            const Divider(),
-
-            // ==============================================================
-            // NAVIGATION
-            // ==============================================================
-
-            ..._visibleNavItems(context)
-                .map(
-              (entry) {
-                final idx =
-                    entry.key;
-
-                final item =
-                    entry.value;
-
-                final isSelected =
-                    widget.selectedIndex ==
-                        idx;
-
-                return Material(
-                  color: Colors.transparent,
-                  child: ListTile(
-                    tileColor: Colors.transparent,
-                    leading: Icon(
-                      isSelected
-                          ? item[
-                              'activeIcon']
-                          : item['icon'],
-                      color: isSelected
-                          ? AppTheme
-                              .goldDark
-                          : AppTheme
-                              .darkNavy,
-                    ),
-                    title: Text(
-                      item['title'],
-                      style:
-                          TextStyle(
-                        fontWeight:
-                            isSelected
-                                ? FontWeight
-                                    .bold
-                                : FontWeight
-                                    .normal,
-                        color: isSelected
-                            ? AppTheme
-                                .goldDark
-                            : AppTheme
-                                .darkNavy,
-                      ),
-                    ),
-                    selected:
-                        isSelected,
-                    selectedTileColor:
-                        AppTheme
-                            .goldLight
-                            .withValues(alpha: 
-                      0.3,
-                    ),
-                    onTap: () {
-                      Navigator.pop(
-                        context,
-                      );
-
-                      _handleNavigation(
-                        context,
-                        idx,
-                      );
-                    },
-                  ),
-                );
-              },
-            ),
-
-            const Divider(),
-
-            // ==============================================================
-            // LOGOUT
-            // ==============================================================
-
-            Material(
-              color: Colors.transparent,
-              child: ListTile(
-                tileColor: Colors.transparent,
-                leading:
-                    const Icon(
-                  Icons.logout,
-                  color:
-                      AppTheme.statusDanger,
-                ),
-                title:
-                    const Text(
-                  'Logout',
-                  style: TextStyle(
-                    color:
-                        AppTheme.statusDanger,
-                    fontWeight:
-                        FontWeight.w600,
-                  ),
-                ),
-                onTap: () {
-                  _logout(context);
-                },
-              ),
-            ),
-          ],
+              return drawerBody;
+            },
+          ),
         ),
       ),
 
-      // ========================================================================
-      // BODY
-      // ========================================================================
-
       body: widget.child,
-
-      // ========================================================================
-      // BOTTOM NAVIGATION
-      // ========================================================================
 
       bottomNavigationBar: bottomNavItems.length >= 2
           ? BottomNavigationBar(
@@ -1277,39 +969,24 @@ class _ResponsiveLayoutState
                   : 0,
               type: BottomNavigationBarType.fixed,
               onTap: (visibleIndex) {
-                if (visibleIndex < 0 || visibleIndex >= bottomNavItems.length) {
-                  return;
-                }
-                _handleNavigation(
-                  context,
-                  bottomNavItems[visibleIndex].key,
-                );
+                if (visibleIndex < 0 || visibleIndex >= bottomNavItems.length) return;
+                _handleNavigation(context, bottomNavItems[visibleIndex].key);
               },
-              items: bottomNavItems.map(
-                (entry) {
-                  final item = entry.value;
-                  return BottomNavigationBarItem(
-                    icon: Icon(item['icon']),
-                    activeIcon: Icon(item['activeIcon']),
-                    label: item['title'].toString(),
-                  );
-                },
-              ).toList(),
+              items: bottomNavItems.map((entry) {
+                final item = entry.value;
+                return BottomNavigationBarItem(
+                  icon: Icon(item['icon']),
+                  activeIcon: Icon(item['activeIcon']),
+                  label: item['title'].toString(),
+                );
+              }).toList(),
             )
           : null,
     );
   }
 
-  // ==========================================================================
-  // MOBILE PROFILE
-  // ==========================================================================
-
-  Widget _buildMobileProfile(
-    BuildContext context,
-  ) {
-    final user = context
-        .watch<AuthProvider>()
-        .currentUser;
+  Widget _buildMobileProfile(BuildContext context) {
+    final user = context.watch<AuthProvider>().currentUser;
 
     final String role = ((user?['role']?.toString().trim().isNotEmpty == true)
         ? user!['role'].toString().trim()
@@ -1318,38 +995,36 @@ class _ResponsiveLayoutState
     final String badgeLetter = role.isNotEmpty ? role[0] : 'A';
 
     return Container(
-      margin: const EdgeInsets.all(12),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: AppTheme.silverLight,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: AppTheme.silverBorder,
-        ),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppTheme.silverBorder),
       ),
       child: Row(
         children: [
           CircleAvatar(
-            radius: 20,
+            radius: 14,
             backgroundColor: AppTheme.goldPrimary,
             child: Text(
               badgeLetter,
               style: const TextStyle(
                 color: AppTheme.darkNavy,
                 fontWeight: FontWeight.w900,
-                fontSize: 18,
+                fontSize: 12,
                 height: 1.0,
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Text(
             role,
             style: const TextStyle(
               color: AppTheme.darkNavy,
-              fontSize: 14,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.8,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.6,
             ),
           ),
         ],
@@ -1357,13 +1032,7 @@ class _ResponsiveLayoutState
     );
   }
 
-  // ==========================================================================
-  // LOGOUT
-  // ==========================================================================
-
-  void _logout(
-    BuildContext context,
-  ) async {
+  void _logout(BuildContext context) async {
     final navigator = Navigator.of(context);
 
     if (Scaffold.maybeOf(context)?.isDrawerOpen == true) {
@@ -1376,9 +1045,7 @@ class _ResponsiveLayoutState
     context.read<AuthProvider>().logout();
 
     navigator.pushAndRemoveUntil(
-      MaterialPageRoute(
-        builder: (_) => const SplashScreen(targetRoute: '/login'),
-      ),
+      MaterialPageRoute(builder: (_) => const SplashScreen(targetRoute: '/login')),
       (route) => false,
     );
   }
