@@ -228,6 +228,10 @@ router.get(['/get', '/get.php', '/:receiptId'], requirePermission('receipt.view'
       if (custRows.length > 0) customer = custRows[0];
     }
 
+    if (!receipt && !loan) {
+      return res.status(404).json({ success: false, message: 'Receipt or Loan record not found' });
+    }
+
     let dataJson = {};
     if (receipt) {
       try {
