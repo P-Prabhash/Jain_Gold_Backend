@@ -20,10 +20,39 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Map<String, dynamic>? _lastLoginResponse;
+
   bool get isAuthenticated => _isAuthenticated;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   Map<String, dynamic>? get currentUser => _currentUser;
+  Map<String, dynamic>? get lastLoginResponse => _lastLoginResponse;
+
+  // ============================================================
+  // LOGIN STEP 1
+  // ============================================================
+
+  Future<Map<String, dynamic>> loginRequest(
+    String username,
+    String password,
+  ) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final res = await ApiService.login(username, password);
+      _lastLoginResponse = res;
+      _isLoading = false;
+      notifyListeners();
+      return res;
+    } catch (e) {
+      _isLoading = false;
+      _errorMessage = e.toString().replaceFirst('Exception: ', '');
+      notifyListeners();
+      return {'success': false, 'message': _errorMessage};
+    }
+  }
 
   // ============================================================
   // LOGIN
@@ -46,10 +75,6 @@ class AuthProvider extends ChangeNotifier {
 
       Map<String, dynamic>? loggedInUser;
 
-      // ========================================================
-      // 1. PREFERRED: ROOT-LEVEL USER
-      // ========================================================
-
       final rawUser = res['user'];
 
       if (rawUser is Map) {
@@ -57,10 +82,6 @@ class AuthProvider extends ChangeNotifier {
           rawUser,
         );
       }
-
-      // ========================================================
-      // 2. FALLBACK: USER INSIDE DATA
-      // ========================================================
 
       if (loggedInUser == null) {
         final data = res['data'];
@@ -72,10 +93,6 @@ class AuthProvider extends ChangeNotifier {
         }
       }
 
-      // ========================================================
-      // 3. FALLBACK: USER INSIDE RESULT
-      // ========================================================
-
       if (loggedInUser == null) {
         final result = res['result'];
 
@@ -86,20 +103,12 @@ class AuthProvider extends ChangeNotifier {
         }
       }
 
-      // ========================================================
-      // 4. FALLBACK: APISERVICE CURRENT USER
-      // ========================================================
-
       if (loggedInUser == null &&
           ApiService.currentUser != null) {
         loggedInUser = Map<String, dynamic>.from(
           ApiService.currentUser!,
         );
       }
-
-      // ========================================================
-      // 5. USER MUST EXIST
-      // ========================================================
 
       if (loggedInUser == null ||
           loggedInUser.isEmpty) {
@@ -112,24 +121,12 @@ class AuthProvider extends ChangeNotifier {
         _errorMessage =
             'Login succeeded but user information was not returned.';
 
-        debugPrint(
-          'AUTH LOGIN ERROR: API response did not contain user information.',
-        );
-
-        debugPrint(
-          'AUTH LOGIN RESPONSE: $res',
-        );
-
         _isLoading = false;
 
         notifyListeners();
 
         return false;
       }
-
-      // ========================================================
-      // 6. STORE INITIAL USER
-      // ========================================================
 
       _currentUser = Map<String, dynamic>.from(
         loggedInUser,
@@ -142,35 +139,9 @@ class AuthProvider extends ChangeNotifier {
       _isAuthenticated = true;
       _errorMessage = null;
 
-      debugPrint(
-        'AUTH LOGIN: Authentication successful',
-      );
-
-      debugPrint(
-        'AUTH LOGIN: currentUser=$_currentUser',
-      );
-
-      debugPrint(
-        'AUTH LOGIN: role=${_extractRole(_currentUser)}',
-      );
-
-      // ========================================================
-      // 7. LOAD STAFF PERMISSIONS
-      //
-      // ADMIN:
-      //   Full unrestricted access.
-      //
-      // STAFF / OTHER ROLES:
-      //   Load only permissions assigned by ADMIN.
-      // ========================================================
-
       final role = _extractRole(_currentUser);
 
       if (role == 'ADMIN') {
-        // ADMIN has unrestricted access.
-        //
-        // We intentionally do not require permission records
-        // for ADMIN because ADMIN is the controlling role.
         _currentUser!['permission_codes'] =
             <String>[];
 
@@ -181,15 +152,7 @@ class AuthProvider extends ChangeNotifier {
             Map<String, dynamic>.from(
           _currentUser!,
         );
-
-        debugPrint(
-          'AUTH PERMISSIONS: ADMIN unrestricted access',
-        );
       } else {
-        // ------------------------------------------------------
-        // STAFF / NON-ADMIN
-        // ------------------------------------------------------
-
         final userId = _extractUserId(
           _currentUser,
         );
@@ -204,10 +167,6 @@ class AuthProvider extends ChangeNotifier {
           _errorMessage =
               'Login succeeded but user ID was not returned.';
 
-          debugPrint(
-            'AUTH PERMISSIONS ERROR: Invalid user ID.',
-          );
-
           _isLoading = false;
 
           notifyListeners();
@@ -220,10 +179,6 @@ class AuthProvider extends ChangeNotifier {
               await ApiService.getUserPermissions(
             userId,
           );
-
-          // ----------------------------------------------------
-          // ASSIGNED PERMISSION CODES
-          // ----------------------------------------------------
 
           final assignedCodes =
               <String>{};
@@ -243,12 +198,6 @@ class AuthProvider extends ChangeNotifier {
               }
             }
           }
-
-          // ----------------------------------------------------
-          // FALLBACK:
-          // Some backend versions may return the complete
-          // permissions catalogue with an `assigned` flag.
-          // ----------------------------------------------------
 
           final rawPermissions =
               permissionResult['permissions'];
@@ -288,14 +237,9 @@ class AuthProvider extends ChangeNotifier {
             }
           }
 
-          // ----------------------------------------------------
-          // STORE ASSIGNED PERMISSIONS IN CURRENT USER
-          // ----------------------------------------------------
-
           _currentUser!['permission_codes'] =
               assignedCodes.toList();
 
-          // Keep the complete returned permission data too.
           if (rawPermissions is List) {
             _currentUser!['permissions'] =
                 rawPermissions
@@ -316,26 +260,7 @@ class AuthProvider extends ChangeNotifier {
               Map<String, dynamic>.from(
             _currentUser!,
           );
-
-          debugPrint(
-            'AUTH PERMISSIONS: userId=$userId',
-          );
-
-          debugPrint(
-            'AUTH PERMISSIONS: role=$role',
-          );
-
-          debugPrint(
-            'AUTH PERMISSIONS: assigned=${assignedCodes.toList()}',
-          );
         } catch (permissionError) {
-          // ----------------------------------------------------
-          // FAIL CLOSED
-          //
-          // STAFF must never receive unrestricted access if
-          // permission loading fails.
-          // ----------------------------------------------------
-
           _isAuthenticated = false;
           _currentUser = null;
 
@@ -346,10 +271,6 @@ class AuthProvider extends ChangeNotifier {
               'Unable to load user permissions. '
               'Please try logging in again.';
 
-          debugPrint(
-            'AUTH PERMISSIONS ERROR: $permissionError',
-          );
-
           _isLoading = false;
 
           notifyListeners();
@@ -357,10 +278,6 @@ class AuthProvider extends ChangeNotifier {
           return false;
         }
       }
-
-      // ========================================================
-      // 8. FINAL AUTHENTICATED STATE
-      // ========================================================
 
       _isLoading = false;
 
@@ -383,13 +300,102 @@ class AuthProvider extends ChangeNotifier {
             '',
           );
 
-      debugPrint(
-        'AUTH LOGIN EXCEPTION: $_errorMessage',
-      );
-
       notifyListeners();
 
       return false;
+    }
+  }
+
+  // ============================================================
+  // VERIFY OTP (STEP 2)
+  // ============================================================
+
+  Future<bool> verifyOtp(
+    String challengeId,
+    String otp,
+  ) async {
+    _isLoading = true;
+    _errorMessage = null;
+
+    notifyListeners();
+
+    try {
+      final res = await ApiService.verifyOtp(challengeId, otp);
+
+      Map<String, dynamic>? loggedInUser;
+      final rawUser = res['user'] ?? res['data']?['user'];
+
+      if (rawUser is Map) {
+        loggedInUser = Map<String, dynamic>.from(rawUser);
+      }
+
+      if (loggedInUser == null || loggedInUser.isEmpty) {
+        _currentUser = null;
+        _isAuthenticated = false;
+        ApiService.currentUser = null;
+        ApiService.authToken = null;
+        _errorMessage = 'OTP verified but user information was not returned.';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
+      _currentUser = Map<String, dynamic>.from(loggedInUser);
+      ApiService.currentUser = Map<String, dynamic>.from(loggedInUser);
+      _isAuthenticated = true;
+      _errorMessage = null;
+
+      final role = _extractRole(_currentUser);
+
+      if (role == 'ADMIN' || role == 'SUPER_ADMIN') {
+        _currentUser!['permission_codes'] = <String>[];
+        _currentUser!['permissions'] = <Map<String, dynamic>>[];
+        ApiService.currentUser = Map<String, dynamic>.from(_currentUser!);
+      } else {
+        final userId = _extractUserId(_currentUser);
+        if (userId != null && userId > 0) {
+          try {
+            final permissionResult = await ApiService.getUserPermissions(userId);
+            final assignedCodes = <String>{};
+            final rawCodes = permissionResult['permission_codes'];
+            if (rawCodes is List) {
+              for (final item in rawCodes) {
+                final code = _normalizePermissionCode(item.toString());
+                if (code.isNotEmpty) assignedCodes.add(code);
+              }
+            }
+            _currentUser!['permission_codes'] = assignedCodes.toList();
+            ApiService.currentUser = Map<String, dynamic>.from(_currentUser!);
+          } catch (_) {}
+        }
+      }
+
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _isAuthenticated = false;
+      _currentUser = null;
+      ApiService.currentUser = null;
+      ApiService.authToken = null;
+      _isLoading = false;
+      _errorMessage = e.toString().replaceFirst('Exception: ', '');
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // ============================================================
+  // RESEND OTP
+  // ============================================================
+
+  Future<Map<String, dynamic>> resendOtp(String challengeId) async {
+    try {
+      final res = await ApiService.resendOtp(challengeId);
+      return res;
+    } catch (e) {
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      return {'success': false, 'message': msg};
     }
   }
 
@@ -419,14 +425,6 @@ class AuthProvider extends ChangeNotifier {
 
     _isAuthenticated = true;
     _errorMessage = null;
-
-    debugPrint(
-      'AUTH USER SET: $_currentUser',
-    );
-
-    debugPrint(
-      'AUTH ROLE: ${_extractRole(_currentUser)}',
-    );
 
     notifyListeners();
   }
@@ -470,7 +468,6 @@ class AuthProvider extends ChangeNotifier {
       }
     }
 
-    // Some APIs may wrap the user object.
     const nestedKeys = <String>[
       'user',
       'data',
@@ -542,7 +539,6 @@ class AuthProvider extends ChangeNotifier {
       }
     }
 
-    // Some APIs may wrap the actual user object.
     const nestedKeys = <String>[
       'user',
       'data',
@@ -620,7 +616,6 @@ class AuthProvider extends ChangeNotifier {
       return <String>[];
     }
 
-    // ADMIN is unrestricted.
     if (_extractRole(user) == 'ADMIN') {
       return <String>[];
     }
@@ -653,7 +648,6 @@ class AuthProvider extends ChangeNotifier {
   bool hasPermission(
     String permissionCode,
   ) {
-    // ADMIN has unrestricted access.
     if (isAdmin) {
       return true;
     }
@@ -683,10 +677,6 @@ class AuthProvider extends ChangeNotifier {
     ApiService.authToken = null;
     ApiService.currentUser = null;
     StorageService.clear();
-
-    debugPrint(
-      'AUTH LOGOUT: session cleared',
-    );
 
     notifyListeners();
   }

@@ -6,7 +6,9 @@ import 'package:provider/provider.dart';
 
 import '../../config/theme.dart';
 import '../../providers/auth_provider.dart';
-import 'admin_registration_screen.dart';
+import '../../widgets/app_logo.dart';
+import '../../widgets/app_notification.dart';
+import 'otp_verification_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final void Function(BuildContext context)? onLoginSuccess;
@@ -28,7 +30,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _isLoading = false;
   bool _obscurePassword = true;
-  String? _errorMessage;
 
   @override
   void dispose() {
@@ -46,56 +47,49 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() {
       _isLoading = true;
-      _errorMessage = null;
     });
 
     try {
       final authProvider = context.read<AuthProvider>();
 
-      final success = await authProvider.login(
+      final res = await authProvider.loginRequest(
         _usernameController.text.trim(),
         _passwordController.text,
       );
 
       if (!mounted) return;
 
-      if (success) {
-        final user = authProvider.currentUser;
-        final String fullName = user?['full_name']?.toString() ?? _usernameController.text.trim();
+      if (res['success'] == true) {
+        final String challengeId = (res['challengeId'] ?? res['challenge_id'] ?? '').toString();
+        final String targetEmail = (res['email'] ?? 'pandetiprabhash@gmail.com').toString();
+        final String? debugOtp = res['debug_otp']?.toString();
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: AppTheme.goldDark,
-            duration: const Duration(milliseconds: 700),
-            content: Text(
-              'Welcome, $fullName',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-              ),
+        AppNotification.info(
+          context,
+          'A 4-digit verification code has been sent to $targetEmail.',
+        );
+
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => OtpVerificationScreen(
+              challengeId: challengeId,
+              email: targetEmail,
+              username: _usernameController.text.trim(),
+              debugOtp: debugOtp,
             ),
           ),
         );
-
-        await Future.delayed(const Duration(milliseconds: 400));
-        if (!mounted) return;
-
-        if (widget.onLoginSuccess != null) {
-          widget.onLoginSuccess!(context);
-        } else {
-          Navigator.of(context).pushReplacementNamed('/main');
-        }
         return;
       }
 
-      setState(() {
-        _errorMessage = authProvider.errorMessage ?? 'Invalid username or password';
-      });
+      final msg = res['message']?.toString() ?? authProvider.errorMessage ?? 'Invalid username or password';
+      if (mounted) {
+        AppNotification.error(context, msg);
+      }
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _errorMessage = e.toString().replaceFirst('Exception: ', '');
-      });
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      AppNotification.error(context, msg);
     } finally {
       if (mounted) {
         setState(() {
@@ -177,17 +171,12 @@ class _LoginScreenState extends State<LoginScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // GLOWING OM LOGO BADGE WITH PURE WHITE FILL INSIDE
+          // OFFICIAL APP LOGO BADGE
           Container(
             width: 120,
             height: 120,
             decoration: BoxDecoration(
-              color: Colors.white, // Pure white fill inside
               shape: BoxShape.circle,
-              border: Border.all(
-                color: AppTheme.goldPrimary,
-                width: 3.5,
-              ),
               boxShadow: [
                 BoxShadow(
                   color: AppTheme.goldPrimary.withValues(alpha: 0.40),
@@ -196,15 +185,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ],
             ),
-            child: const Center(
-              child: Text(
-                '🕉️',
-                style: TextStyle(
-                  fontSize: 58,
-                  height: 1.0,
-                ),
-              ),
-            ),
+            child: const AppLogo(size: 120),
           ),
 
           const SizedBox(height: 32),
@@ -226,10 +207,10 @@ class _LoginScreenState extends State<LoginScreen> {
             'JAIN GOLD & PAWN SHOP',
             textAlign: TextAlign.center,
             style: GoogleFonts.cinzel(
-              fontSize: 18,
+              fontSize: 22,
               fontWeight: FontWeight.w900,
               color: AppTheme.goldPrimary,
-              letterSpacing: 1.4,
+              letterSpacing: 1.6,
             ),
           ),
 
@@ -304,18 +285,13 @@ class _LoginScreenState extends State<LoginScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // HEADER OM LOGO BADGE WITH PURE WHITE FILL INSIDE
+            // OFFICIAL APP LOGO BADGE
             Center(
               child: Container(
                 width: 84,
                 height: 84,
                 decoration: BoxDecoration(
-                  color: Colors.white, // Pure white fill inside
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: AppTheme.goldPrimary,
-                    width: 3,
-                  ),
                   boxShadow: [
                     BoxShadow(
                       color: AppTheme.goldPrimary.withValues(alpha: 0.28),
@@ -324,15 +300,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ],
                 ),
-                child: const Center(
-                  child: Text(
-                    '🕉️',
-                    style: TextStyle(
-                      fontSize: 42,
-                      height: 1.0,
-                    ),
-                  ),
-                ),
+                child: const AppLogo(size: 84),
               ),
             ),
 
@@ -360,11 +328,6 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
 
             const SizedBox(height: 28),
-
-            if (_errorMessage != null) ...[
-              _buildErrorBox(),
-              const SizedBox(height: 18),
-            ],
 
             // USERNAME
             TextFormField(
@@ -443,20 +406,13 @@ class _LoginScreenState extends State<LoginScreen> {
                           color: AppTheme.goldPrimary,
                         ),
                       )
-                    : const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.login, size: 19),
-                          SizedBox(width: 8),
-                          Text(
-                            'LOGIN',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.8,
-                            ),
-                          ),
-                        ],
+                    : const Text(
+                        'LOGIN',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                        ),
                       ),
               ),
             ),
@@ -473,64 +429,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 fontWeight: FontWeight.w600,
               ),
             ),
-
-            const SizedBox(height: 10),
-
-            TextButton.icon(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const AdminRegistrationScreen(),
-                  ),
-                );
-              },
-              icon: const Icon(
-                Icons.admin_panel_settings_outlined,
-                size: 15,
-                color: AppTheme.goldDark,
-              ),
-              label: const Text(
-                'Initial Admin Setup',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.goldDark,
-                ),
-              ),
-            ),
           ],
         ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // ERROR BOX
-  // ============================================================
-
-  Widget _buildErrorBox() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.red.shade50,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.red.shade300),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.error_outline, color: Colors.red.shade700, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              _errorMessage ?? 'Login error',
-              style: TextStyle(
-                color: Colors.red.shade900,
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

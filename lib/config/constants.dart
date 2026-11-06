@@ -17,7 +17,7 @@ class AppConstants {
   // ============================================================
 
   static const String defaultApiBaseUrl =
-      'https://backedn-node.onrender.com';
+      'https://jain-gold-backend.onrender.com';
 
   static const String baseUrl =
       defaultApiBaseUrl;
