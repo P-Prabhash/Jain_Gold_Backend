@@ -101,6 +101,30 @@ const openApiSpec = {
         }
       }
     },
+    "/api/auth/test-email": {
+      post: {
+        summary: "Independent Gmail SMTP Test Email (Development)",
+        description: "Sends an automated test email directly through Gmail SMTP without generating an OTP to verify live delivery.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  email: { type: "string", example: "pandetiprabhash@gmail.com" }
+                },
+                required: ["email"]
+              }
+            }
+          }
+        },
+        responses: {
+          "200": { description: "Test email successfully accepted by Gmail SMTP server." },
+          "500": { description: "Gmail SMTP delivery error." }
+        }
+      }
+    },
     "/api/auth/me": {
       get: {
         summary: "Retrieve Authenticated User Profile",

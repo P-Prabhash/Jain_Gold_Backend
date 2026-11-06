@@ -148,7 +148,11 @@ app.listen(PORT, async () => {
     const { getPool } = require('./config/database');
     await getPool();
     console.log(`[DATABASE SUCCESS] Connected to MySQL and all tables verified/created.`);
+
+    // Verify Gmail SMTP Connection
+    const { verifySmtpConnection } = require('./utils/emailHelper');
+    await verifySmtpConnection();
   } catch (err) {
-    console.error(`[DATABASE ERROR] Automatic table creation failed: ${err.message}`);
+    console.error(`[DATABASE ERROR] Initialization failed: ${err.message}`);
   }
 });

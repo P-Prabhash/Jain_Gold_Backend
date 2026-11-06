@@ -1,72 +1,171 @@
 const nodemailer = require('nodemailer');
 require('dotenv').config();
 
-const SMTP_USER = process.env.SMTP_USER || 'pandetiprabhash@gmail.com';
-const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
-const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
-const SMTP_SECURE = process.env.SMTP_SECURE === 'true' || process.env.SMTP_SECURE === '1';
-const SMTP_PASS = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || '';
+function getTransporter() {
+  const SMTP_USER = (process.env.SMTP_USER || 'pandetiprabhash@gmail.com').trim();
+  const SMTP_HOST = (process.env.SMTP_HOST || 'smtp.gmail.com').trim();
+  const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
+  const SMTP_SECURE = process.env.SMTP_SECURE === 'true' || process.env.SMTP_SECURE === '1';
+  const SMTP_PASS = (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || '').trim();
 
-async function sendOtpEmail(toEmail, otp, challengeId) {
-  const targetEmail = (toEmail && toEmail.trim()) ? toEmail.trim() : 'pandetiprabhash@gmail.com';
-  console.log(`[MAIL] Sending OTP email to ${targetEmail}`);
+  return nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_SECURE,
+    auth: {
+      user: SMTP_USER,
+      pass: SMTP_PASS,
+    },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
+    tls: {
+      rejectUnauthorized: false
+    }
+  });
+}
 
-  if (!SMTP_PASS || SMTP_PASS.trim() === '') {
-    console.warn(`[GMAIL SMTP NOTICE] SMTP_PASS / GMAIL_APP_PASSWORD is not set. Development mode active (Challenge: ${challengeId}).`);
-    return { success: false, message: 'SMTP Password not configured, logged OTP for dev/testing.' };
+async function verifySmtpConnection() {
+  console.log('[MAIL] Gmail SMTP configuration loaded');
+  console.log('[MAIL] Verifying SMTP connection');
+
+  const SMTP_PASS = (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || '').trim();
+  if (!SMTP_PASS) {
+    console.warn('[MAIL ERROR] SMTP_PASS / GMAIL_APP_PASSWORD is not set in environment.');
+    return { success: false, error: 'SMTP_PASS not set' };
   }
 
   try {
-    const transporter = nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: SMTP_PORT,
-      secure: SMTP_SECURE,
-      auth: {
-        user: SMTP_USER,
-        pass: SMTP_PASS,
-      },
-      tls: {
-        rejectUnauthorized: false
-      }
-    });
+    const transporter = getTransporter();
+    await transporter.verify();
+    console.log('[MAIL] SMTP connection successful');
+    return { success: true };
+  } catch (err) {
+    if (err.message.includes('Username and Password not accepted') || err.code === 'EAUTH') {
+      console.error('[MAIL ERROR] SMTP authentication failed');
+    } else if (err.code === 'ETIMEDOUT' || err.code === 'ESOCKET') {
+      console.error('[MAIL ERROR] SMTP connection timeout');
+    } else {
+      console.error(`[MAIL ERROR] Gmail rejected connection: ${err.message}`);
+    }
+    return { success: false, error: err.message };
+  }
+}
+
+async function sendOtpEmail(toEmail, otp, challengeId) {
+  const targetEmail = (toEmail && toEmail.trim()) ? toEmail.trim() : 'pandetiprabhash@gmail.com';
+  console.log(`[MAIL] Sending OTP email`);
+
+  const SMTP_USER = (process.env.SMTP_USER || 'pandetiprabhash@gmail.com').trim();
+  const SMTP_PASS = (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || '').trim();
+
+  if (!SMTP_PASS) {
+    console.warn(`[MAIL ERROR] SMTP authentication failed: SMTP_PASS not set (Challenge ID: ${challengeId})`);
+    return { success: false, error: 'SMTP Password not configured' };
+  }
+
+  try {
+    const transporter = getTransporter();
 
     const mailOptions = {
-      from: `"Jain Gold & Pawn Shop ERP" <${SMTP_USER}>`,
+      from: `"Gold & Silver ERP" <${SMTP_USER}>`,
       to: targetEmail,
-      subject: `Your Login Verification Code`,
+      subject: 'Gold & Silver ERP – Admin Login Verification Code',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 24px; border: 1px solid #e0e0e0; border-radius: 12px; background-color: #ffffff;">
           <div style="text-align: center; margin-bottom: 20px;">
-            <h2 style="color: #0c101b; margin: 0; font-size: 22px;">Jain Gold & Pawn Shop ERP</h2>
-            <p style="color: #c5a059; font-weight: bold; margin-top: 4px; font-size: 13px; text-transform: uppercase;">Enterprise Collateral Management</p>
+            <h2 style="color: #0c101b; margin: 0; font-size: 22px;">Gold & Silver ERP</h2>
+            <p style="color: #c5a059; font-weight: bold; margin-top: 4px; font-size: 13px; text-transform: uppercase;">Jain Gold & Pawn Shop ERP</p>
           </div>
           <hr style="border: 0; border-top: 1px solid #eaeaea; margin: 16px 0;" />
-          <h3 style="color: #333333; font-size: 16px; margin-bottom: 8px;">Email Verification Code</h3>
-          <p style="color: #555555; font-size: 14px; line-height: 1.5;">A 4-digit verification code has been generated for your Admin login session.</p>
+          <p style="color: #333333; font-size: 15px; margin-bottom: 12px;">Dear Admin,</p>
+          <p style="color: #555555; font-size: 14px; line-height: 1.5;">Your Gold & Silver ERP login verification code is:</p>
 
-          <div style="background-color: #f8fafc; padding: 20px; text-align: center; border-radius: 8px; margin: 24px 0; border: 1px dashed #cbd5e1;">
+          <div style="background-color: #f8fafc; padding: 20px; text-align: center; border-radius: 8px; margin: 20px 0; border: 1px dashed #cbd5e1;">
             <span style="font-size: 36px; font-weight: 900; letter-spacing: 12px; color: #0c101b;">${otp}</span>
           </div>
 
-          <p style="color: #64748b; font-size: 13px; line-height: 1.4;">
-            This OTP will expire in <strong>5 minutes</strong>. If you did not request this login attempt, please contact system administration immediately.
-          </p>
-          <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #f1f5f9; text-align: center; color: #94a3b8; font-size: 11px;">
-            Authorized Admin Access Only • Ref: ${challengeId}
+          <p style="color: #555555; font-size: 13px;">This verification code is valid for 10 minutes.</p>
+          <p style="color: #d32f2f; font-size: 13px; font-weight: bold;">Do not share this code with anyone.</p>
+
+          <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #eaeaea; color: #0c101b; font-weight: bold; font-size: 13px;">
+            Gold & Silver – Jain Gold & Pawn Shop ERP
           </div>
         </div>
       `,
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log(`[MAIL] Email delivered successfully to ${targetEmail}. MessageID: ${info.messageId}`);
-    return { success: true, messageId: info.messageId };
+    console.log(`[MAIL] Email accepted by SMTP server`);
+    return { success: true, messageId: info.messageId, response: info.response };
   } catch (err) {
-    console.error(`[MAIL ERROR] Failed to deliver OTP email to ${targetEmail}: ${err.message}`);
+    if (err.message.includes('No recipients defined') || err.code === 'EENVELOPE') {
+      console.error(`[MAIL ERROR] Invalid recipient: ${targetEmail}`);
+    } else if (err.message.includes('Username and Password not accepted') || err.code === 'EAUTH') {
+      console.error(`[MAIL ERROR] SMTP authentication failed: ${err.message}`);
+    } else if (err.code === 'ETIMEDOUT') {
+      console.error(`[MAIL ERROR] SMTP connection timeout`);
+    } else {
+      console.error(`[MAIL ERROR] Gmail rejected email: ${err.message}`);
+    }
+    return { success: false, error: err.message };
+  }
+}
+
+async function sendTestEmail(toEmail) {
+  const targetEmail = (toEmail && toEmail.trim()) ? toEmail.trim() : 'pandetiprabhash@gmail.com';
+  console.log(`[MAIL] Sending test email`);
+
+  const SMTP_USER = (process.env.SMTP_USER || 'pandetiprabhash@gmail.com').trim();
+  const SMTP_PASS = (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || '').trim();
+
+  if (!SMTP_PASS) {
+    console.error('[MAIL ERROR] SMTP authentication failed: SMTP_PASS not set');
+    return { success: false, error: 'SMTP_PASS / GMAIL_APP_PASSWORD is not configured in .env' };
+  }
+
+  try {
+    const transporter = getTransporter();
+
+    const mailOptions = {
+      from: `"Gold & Silver ERP" <${SMTP_USER}>`,
+      to: targetEmail,
+      subject: 'Gold & Silver ERP – Gmail SMTP Connectivity Test',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 24px; border: 1px solid #e0e0e0; border-radius: 12px; background-color: #ffffff;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <h2 style="color: #0c101b; margin: 0; font-size: 22px;">Gold & Silver ERP</h2>
+            <p style="color: #c5a059; font-weight: bold; margin-top: 4px; font-size: 13px; text-transform: uppercase;">Gmail SMTP Connectivity Test</p>
+          </div>
+          <hr style="border: 0; border-top: 1px solid #eaeaea; margin: 16px 0;" />
+          <p style="color: #333333; font-size: 15px;">This is an automated SMTP test email from Gold & Silver ERP.</p>
+          <p style="color: #2e7d32; font-weight: bold; font-size: 14px;">✔ Gmail SMTP Connection & Email Delivery Working Successfully!</p>
+          <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #f1f5f9; text-align: center; color: #94a3b8; font-size: 11px;">
+            Target: ${targetEmail} • Sent At: ${new Date().toISOString()}
+          </div>
+        </div>
+      `
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`[MAIL] Email accepted by SMTP server`);
+    return { success: true, messageId: info.messageId, response: info.response };
+  } catch (err) {
+    if (err.message.includes('No recipients defined') || err.code === 'EENVELOPE') {
+      console.error(`[MAIL ERROR] Invalid recipient`);
+    } else if (err.message.includes('Username and Password not accepted') || err.code === 'EAUTH') {
+      console.error(`[MAIL ERROR] SMTP authentication failed`);
+    } else if (err.code === 'ETIMEDOUT') {
+      console.error(`[MAIL ERROR] SMTP connection timeout`);
+    } else {
+      console.error(`[MAIL ERROR] Gmail rejected email`);
+    }
     return { success: false, error: err.message };
   }
 }
 
 module.exports = {
-  sendOtpEmail
+  verifySmtpConnection,
+  sendOtpEmail,
+  sendTestEmail
 };

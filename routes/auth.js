@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { getPool } = require('../config/database');
 const {
   createAuthToken,
@@ -11,7 +12,7 @@ const {
   getAuthenticatedUserById
 } = require('../config/auth');
 const { authenticate } = require('../middleware/authMiddleware');
-const { sendOtpEmail } = require('../utils/emailHelper');
+const { sendOtpEmail, sendTestEmail } = require('../utils/emailHelper');
 
 // ============================================================
 // GET /auth/admin_status (.php)
@@ -116,13 +117,16 @@ router.all([
       });
     }
 
-    console.log('[AUTH] Credentials validated');
+    console.log('[AUTH] Admin credentials validated');
 
-    // Step 1 Success: Generate 4-digit OTP & Challenge ID
-    const otp = String(Math.floor(1000 + Math.random() * 9000));
-    const challengeId = 'CHALLENGE-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+    // Step 1 Success: Generate 4-digit OTP using crypto & Challenge ID
+    const otp = String(crypto.randomInt(1000, 10000));
+    console.log('[OTP] OTP generated successfully');
+
+    const challengeId = 'CHALLENGE-' + Date.now() + '-' + crypto.randomBytes(3).toString('hex').toUpperCase();
     const otpHash = bcrypt.hashSync(otp, 10);
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+    const expiryMinutes = parseInt(process.env.ADMIN_OTP_EXPIRY_MINUTES || '10', 10);
+    const expiresAt = new Date(Date.now() + expiryMinutes * 60 * 1000);
 
     await db.query(
       `INSERT INTO otp_challenges (user_id, challenge_id, otp_hash, expires_at, attempts, is_verified, created_at)
@@ -130,10 +134,12 @@ router.all([
       [user.id, challengeId, otpHash, expiresAt]
     );
 
-    console.log('[AUTH] OTP challenge generated');
+    console.log('[OTP] OTP stored in MySQL');
 
     const targetEmail = (user.email && user.email.includes('@')) ? user.email.trim() : 'pandetiprabhash@gmail.com';
-    await sendOtpEmail(targetEmail, otp, challengeId);
+    const emailResult = await sendOtpEmail(targetEmail, otp, challengeId);
+
+    console.log('[AUTH] OTP challenge created successfully');
 
     return res.json({
       success: true,
@@ -143,9 +149,10 @@ router.all([
       challengeId: challengeId,
       email: targetEmail,
       message: `A 4-digit verification code has been sent to ${targetEmail}.`,
-      expires_in_seconds: 300,
+      expires_in_seconds: expiryMinutes * 60,
       resend_cooldown_seconds: 60,
-      debug_otp: otp // Included for automated dev testing
+      debug_otp: otp, // Included for automated dev testing
+      email_delivered: emailResult.success
     });
 
   } catch (err) {
@@ -404,6 +411,40 @@ router.all([
       success: false,
       message: 'Failed to resend OTP code.',
       error: err.message
+    });
+  }
+});
+
+// ============================================================
+// POST /auth/test-email (.php) & /api/auth/test-email
+// ============================================================
+router.all([
+  '/test-email',
+  '/test-email.php',
+  '/test_email',
+  '/test_email.php',
+  '/auth/test-email',
+  '/auth/test-email.php',
+  '/api/auth/test-email',
+  '/api/auth/test-email.php'
+], async (req, res) => {
+  const targetEmail = String(req.body.email || req.query.email || 'pandetiprabhash@gmail.com').trim();
+  console.log(`[MAIL TEST] Received test email request for: ${targetEmail}`);
+
+  const result = await sendTestEmail(targetEmail);
+
+  if (result.success) {
+    return res.json({
+      success: true,
+      message: `Test email successfully accepted by Gmail SMTP server for ${targetEmail}.`,
+      messageId: result.messageId,
+      response: result.response
+    });
+  } else {
+    return res.status(500).json({
+      success: false,
+      message: `Gmail SMTP test email failed: ${result.error}`,
+      error: result.error
     });
   }
 });
