@@ -9,10 +9,10 @@ const SMTP_PASS = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || '';
 
 async function sendOtpEmail(toEmail, otp, challengeId) {
   const targetEmail = (toEmail && toEmail.trim()) ? toEmail.trim() : 'pandetiprabhash@gmail.com';
-  console.log(`[GMAIL OTP GENERATED] OTP for ${targetEmail}: ${otp} (Challenge ID: ${challengeId})`);
+  console.log(`[MAIL] Sending OTP email to ${targetEmail}`);
 
   if (!SMTP_PASS || SMTP_PASS.trim() === '') {
-    console.warn(`[GMAIL SMTP NOTICE] SMTP_PASS / GMAIL_APP_PASSWORD is not set. OTP logged above for dev/testing.`);
+    console.warn(`[GMAIL SMTP NOTICE] SMTP_PASS / GMAIL_APP_PASSWORD is not set. Development mode active (Challenge: ${challengeId}).`);
     return { success: false, message: 'SMTP Password not configured, logged OTP for dev/testing.' };
   }
 
@@ -33,7 +33,7 @@ async function sendOtpEmail(toEmail, otp, challengeId) {
     const mailOptions = {
       from: `"Jain Gold & Pawn Shop ERP" <${SMTP_USER}>`,
       to: targetEmail,
-      subject: `Your Login Verification Code - ${otp}`,
+      subject: `Your Login Verification Code`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 24px; border: 1px solid #e0e0e0; border-radius: 12px; background-color: #ffffff;">
           <div style="text-align: center; margin-bottom: 20px;">
@@ -59,10 +59,10 @@ async function sendOtpEmail(toEmail, otp, challengeId) {
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log(`[GMAIL SMTP SUCCESS] Sent OTP email to ${targetEmail}. MessageID: ${info.messageId}`);
+    console.log(`[MAIL] Email delivered successfully to ${targetEmail}. MessageID: ${info.messageId}`);
     return { success: true, messageId: info.messageId };
   } catch (err) {
-    console.error(`[GMAIL SMTP ERROR] Failed to send email to ${targetEmail}: ${err.message}`);
+    console.error(`[MAIL ERROR] Failed to deliver OTP email to ${targetEmail}: ${err.message}`);
     return { success: false, error: err.message };
   }
 }

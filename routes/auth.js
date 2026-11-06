@@ -40,6 +40,7 @@ router.get(['/admin_status', '/admin_status.php'], async (req, res) => {
 // POST /auth/login (.php) & /api/auth/login
 // ============================================================
 router.post(['/login', '/login.php'], async (req, res) => {
+  console.log('[AUTH] Login request received');
   const username = String(req.body.username || '').trim();
   const password = String(req.body.password || '');
 
@@ -108,6 +109,8 @@ router.post(['/login', '/login.php'], async (req, res) => {
       });
     }
 
+    console.log('[AUTH] Credentials validated');
+
     // Step 1 Success: Generate 4-digit OTP & Challenge ID
     const otp = String(Math.floor(1000 + Math.random() * 9000));
     const challengeId = 'CHALLENGE-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7).toUpperCase();
@@ -119,6 +122,8 @@ router.post(['/login', '/login.php'], async (req, res) => {
        VALUES (?, ?, ?, ?, 0, 0, NOW())`,
       [user.id, challengeId, otpHash, expiresAt]
     );
+
+    console.log('[AUTH] OTP challenge generated');
 
     const targetEmail = (user.email && user.email.includes('@')) ? user.email.trim() : 'pandetiprabhash@gmail.com';
     await sendOtpEmail(targetEmail, otp, challengeId);
@@ -149,6 +154,7 @@ router.post(['/login', '/login.php'], async (req, res) => {
 // POST /auth/verify-otp (.php) & /api/auth/verify-otp
 // ============================================================
 router.post(['/verify-otp', '/verify_otp', '/verify-otp.php', '/verify_otp.php'], async (req, res) => {
+  console.log('[AUTH] OTP verification requested');
   const challengeId = String(req.body.challengeId || req.body.challenge_id || '').trim();
   const otp = String(req.body.otp || '').trim();
 
@@ -208,6 +214,8 @@ router.post(['/verify-otp', '/verify_otp', '/verify-otp.php', '/verify_otp.php']
       });
     }
 
+    console.log('[AUTH] OTP verified successfully');
+
     // Mark as Verified
     await db.query(
       'UPDATE otp_challenges SET is_verified = 1, verified_at = NOW() WHERE id = ?',
@@ -251,6 +259,8 @@ router.post(['/verify-otp', '/verify_otp', '/verify-otp.php', '/verify_otp.php']
 
     const token = createAuthToken(user);
     const refreshToken = createRefreshToken(user);
+
+    console.log('[AUTH] Access token generated');
 
     try {
       await db.query(
