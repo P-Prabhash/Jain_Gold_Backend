@@ -17,6 +17,13 @@ import 'storage_service.dart';
 
 class ApiService {
   static String baseUrl = AppConstants.defaultApiBaseUrl;
+
+  static String get activeBaseUrl {
+    if (baseUrl.isEmpty || baseUrl.contains('localhost:5000') || baseUrl.contains('localhost:80')) {
+      return 'https://jain-gold-backend.onrender.com';
+    }
+    return baseUrl;
+  }
   static String? authToken;
 
   // Current authenticated user for role checks outside AuthProvider.
@@ -106,7 +113,7 @@ class ApiService {
     Uri uri;
 
     try {
-      uri = Uri.parse('$baseUrl/$endpoint');
+      uri = Uri.parse('$activeBaseUrl/$endpoint');
 
       if (queryParams != null &&
           queryParams.isNotEmpty) {
@@ -167,7 +174,7 @@ class ApiService {
     Uri uri;
 
     try {
-      uri = Uri.parse('$baseUrl/$endpoint');
+      uri = Uri.parse('$activeBaseUrl/$endpoint');
     } catch (e) {
       throw Exception(
         'Invalid API URL: $e',
