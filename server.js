@@ -78,8 +78,52 @@ const testWorkflowRoutes = require('./routes/test_workflow');
 const docsRoutes = require('./routes/docs');
 
 // ============================================================
-// MOUNT ROUTERS
+// MOUNT ROUTERS & TOP-LEVEL ROUTE ALIASES
 // ============================================================
+app.all([
+  '/auth/resend-otp',
+  '/auth/resend_otp',
+  '/auth/resend-otp.php',
+  '/auth/resend_otp.php',
+  '/api/auth/resend-otp',
+  '/api/auth/resend_otp',
+  '/api/auth/resend-otp.php',
+  '/api/auth/resend_otp.php',
+  '/resend-otp',
+  '/resend-otp.php'
+], (req, res, next) => {
+  req.url = '/resend-otp';
+  return authRoutes(req, res, next);
+});
+
+app.all([
+  '/auth/verify-otp',
+  '/auth/verify_otp',
+  '/auth/verify-otp.php',
+  '/auth/verify_otp.php',
+  '/api/auth/verify-otp',
+  '/api/auth/verify_otp',
+  '/api/auth/verify-otp.php',
+  '/api/auth/verify_otp.php',
+  '/verify-otp',
+  '/verify-otp.php'
+], (req, res, next) => {
+  req.url = '/verify-otp';
+  return authRoutes(req, res, next);
+});
+
+app.all([
+  '/auth/login',
+  '/auth/login.php',
+  '/api/auth/login',
+  '/api/auth/login.php',
+  '/login',
+  '/login.php'
+], (req, res, next) => {
+  req.url = '/login';
+  return authRoutes(req, res, next);
+});
+
 app.use(['/api/auth', '/auth', '/auth.php'], authRoutes);
 app.use('/', authRoutes);
 app.use('/customers', customerRoutes);
