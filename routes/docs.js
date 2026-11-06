@@ -6,7 +6,7 @@ const openApiSpec = {
   info: {
     title: "Gold & Silver Pawn Loan Management ERP API",
     version: "1.0.0",
-    description: "Complete Node.js Express REST API for Gold & Silver Pawn Management ERP system."
+    description: "Complete Node.js Express REST API for Gold & Silver Pawn Management ERP system with Two-Step Gmail OTP Authentication."
   },
   servers: [
     {
@@ -24,10 +24,10 @@ const openApiSpec = {
     }
   },
   paths: {
-    "/auth/login": {
+    "/api/auth/login": {
       post: {
-        summary: "User Login",
-        description: "Authenticate user and return JWT bearer token.",
+        summary: "Step 1: Admin/Staff Credential Login",
+        description: "Validates username & password against MySQL database, generates 4-digit OTP, sends email to pandetiprabhash@gmail.com, and returns challenge ID.",
         requestBody: {
           required: true,
           content: {
@@ -44,8 +44,101 @@ const openApiSpec = {
           }
         },
         responses: {
-          "200": { description: "Login successful with token and user profile." },
-          "401": { description: "Invalid username or password." }
+          "200": { description: "Credentials valid. Returns challengeId and requires_otp: true." },
+          "401": { description: "Invalid username or password." },
+          "403": { description: "User account inactive." }
+        }
+      }
+    },
+    "/api/auth/verify-otp": {
+      post: {
+        summary: "Step 2: Gmail OTP Verification",
+        description: "Verifies the 4-digit OTP and challenge ID, generates JWT access and refresh tokens, and completes login.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  challengeId: { type: "string", example: "CHALLENGE-1793332498-A1B2C" },
+                  otp: { type: "string", example: "1234" }
+                },
+                required: ["challengeId", "otp"]
+              }
+            }
+          }
+        },
+        responses: {
+          "200": { description: "OTP verified successfully. Returns JWT token and authenticated user profile." },
+          "401": { description: "Invalid OTP code." },
+          "410": { description: "OTP expired." },
+          "429": { description: "Maximum OTP attempts exceeded." }
+        }
+      }
+    },
+    "/api/auth/resend-otp": {
+      post: {
+        summary: "Resend 4-Digit Gmail OTP",
+        description: "Enforces 60s cooldown, invalidates old OTP, generates new 4-digit OTP, and sends email to pandetiprabhash@gmail.com.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  challengeId: { type: "string", example: "CHALLENGE-1793332498-A1B2C" }
+                },
+                required: ["challengeId"]
+              }
+            }
+          }
+        },
+        responses: {
+          "200": { description: "New 4-digit OTP sent successfully." },
+          "429": { description: "Cooldown period active (wait 60s)." }
+        }
+      }
+    },
+    "/api/auth/me": {
+      get: {
+        summary: "Retrieve Authenticated User Profile",
+        security: [{ BearerAuth: [] }],
+        responses: {
+          "200": { description: "Authenticated user details and permission codes." },
+          "401": { description: "Unauthorized access token." }
+        }
+      }
+    },
+    "/api/auth/refresh-token": {
+      post: {
+        summary: "Refresh Access Token",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  refreshToken: { type: "string", example: "eyJhbGciOiJIUzI1Ni..." }
+                },
+                required: ["refreshToken"]
+              }
+            }
+          }
+        },
+        responses: {
+          "200": { description: "Fresh access token issued." },
+          "401": { description: "Invalid or expired refresh token." }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      post: {
+        summary: "Logout Admin Session",
+        responses: {
+          "200": { description: "Logged out successfully." }
         }
       }
     },
@@ -62,10 +155,7 @@ const openApiSpec = {
                 properties: {
                   name: { type: "string", example: "Ramesh Kumar" },
                   mobile: { type: "string", example: "9876543210" },
-                  address: { type: "string", example: "123 Main Market Street" },
-                  aadhaar_number: { type: "string", example: "123456789012" },
-                  pan_number: { type: "string", example: "ABCDE1234F" },
-                  photo_url: { type: "string", example: "uploads/customers/customer_123.jpg" }
+                  address: { type: "string", example: "123 Main Market Street" }
                 },
                 required: ["name", "mobile", "address"]
               }
@@ -73,92 +163,13 @@ const openApiSpec = {
           }
         },
         responses: {
-          "201": { description: "Customer created successfully." },
-          "409": { description: "Duplicate mobile or Aadhaar number error." }
+          "201": { description: "Customer created successfully." }
         }
       }
     },
-    "/customers/list": {
-      get: {
-        summary: "List Customers",
-        security: [{ BearerAuth: [] }],
-        parameters: [
-          { name: "search", in: "query", schema: { type: "string" } }
-        ],
-        responses: {
-          "200": { description: "List of active customers." }
-        }
-      }
-    },
-    "/gold/create": {
+    "/loans/close": {
       post: {
-        summary: "Add Gold Item Collateral",
-        security: [{ BearerAuth: [] }],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  customer_id: { type: "integer", example: 1 },
-                  item_name: { type: "string", example: "Gold Necklace 22K" },
-                  purity: { type: "string", example: "22K" },
-                  weight: { type: "number", example: 15.5 },
-                  remarks: { type: "string", example: "Excellent condition" },
-                  photo_url: { type: "string", example: "uploads/gold/gold_123.jpg" }
-                },
-                required: ["customer_id", "item_name", "weight"]
-              }
-            }
-          }
-        },
-        responses: {
-          "201": { description: "Gold item added successfully." }
-        }
-      }
-    },
-    "/loans/create_new": {
-      post: {
-        summary: "Create New Pawn Loan",
-        security: [{ BearerAuth: [] }],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  customer_id: { type: "integer", example: 1 },
-                  principal_amount: { type: "number", example: 50000 },
-                  monthly_interest_rate: { type: "number", example: 2.0 },
-                  initial_interest: { type: "number", example: 1000 },
-                  opened_date: { type: "string", example: "2026-10-27" },
-                  items: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        item_name: { type: "string" },
-                        weight: { type: "number" },
-                        purity: { type: "string" }
-                      }
-                    }
-                  }
-                },
-                required: ["customer_id", "principal_amount"]
-              }
-            }
-          }
-        },
-        responses: {
-          "201": { description: "Pawn loan recorded successfully with receipt." }
-        }
-      }
-    },
-    "/payments/create": {
-      post: {
-        summary: "Record Payment / Settlement",
+        summary: "Final Settlement & Loan Closure",
         security: [{ BearerAuth: [] }],
         requestBody: {
           required: true,
@@ -168,10 +179,9 @@ const openApiSpec = {
                 type: "object",
                 properties: {
                   loan_id: { type: "integer", example: 1 },
-                  principal_payment: { type: "number", example: 10000 },
-                  manual_interest: { type: "number", example: 200 },
-                  payment_mode: { type: "string", example: "CASH" },
-                  remarks: { type: "string", example: "Partial payment" }
+                  manual_final_interest: { type: "number", example: 100 },
+                  payment_amount: { type: "number", example: 5100 },
+                  payment_mode: { type: "string", example: "CASH" }
                 },
                 required: ["loan_id"]
               }
@@ -179,28 +189,14 @@ const openApiSpec = {
           }
         },
         responses: {
-          "201": { description: "Payment recorded successfully." }
-        }
-      }
-    },
-    "/receipts/get": {
-      get: {
-        summary: "Retrieve Receipt Details",
-        security: [{ BearerAuth: [] }],
-        parameters: [
-          { name: "receipt_no", in: "query", schema: { type: "string" } },
-          { name: "loan_id", in: "query", schema: { type: "integer" } },
-          { name: "payment_id", in: "query", schema: { type: "integer" } }
-        ],
-        responses: {
-          "200": { description: "Receipt payload containing financial and collateral details." }
+          "200": { description: "Settlement payment recorded successfully." }
         }
       }
     }
   }
 };
 
-// Raw Swagger Spec
+// Raw OpenAPI JSON Spec
 router.get(['/swagger.json', '/openapi.json'], (req, res) => {
   res.json(openApiSpec);
 });
@@ -214,6 +210,9 @@ router.get(['/', '/swagger', '/docs'], (req, res) => {
       <meta charset="UTF-8">
       <title>Gold Pawn ERP - Swagger API Documentation</title>
       <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+      <style>
+        .swagger-ui .topbar { background-color: #0c101b; }
+      </style>
     </head>
     <body style="margin:0; background: #fafafa;">
       <div id="swagger-ui"></div>

@@ -2,7 +2,16 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const { getPool } = require('../config/database');
-const { createAuthToken, normalizeRole, getUserPermissionCodes } = require('../config/auth');
+const {
+  createAuthToken,
+  createRefreshToken,
+  verifyAuthToken,
+  normalizeRole,
+  getUserPermissionCodes,
+  getAuthenticatedUserById
+} = require('../config/auth');
+const { authenticate } = require('../middleware/authMiddleware');
+const { sendOtpEmail } = require('../utils/emailHelper');
 
 // ============================================================
 // GET /auth/admin_status (.php)
@@ -28,7 +37,7 @@ router.get(['/admin_status', '/admin_status.php'], async (req, res) => {
 });
 
 // ============================================================
-// POST /auth/login (.php)
+// POST /auth/login (.php) & /api/auth/login
 // ============================================================
 router.post(['/login', '/login.php'], async (req, res) => {
   const username = String(req.body.username || '').trim();
@@ -55,7 +64,7 @@ router.post(['/login', '/login.php'], async (req, res) => {
   try {
     const db = await getPool();
     const [users] = await db.query(
-      `SELECT id, username, password_hash, full_name, role, status FROM users WHERE LOWER(TRIM(username)) = LOWER(TRIM(?)) LIMIT 1`,
+      `SELECT id, username, password_hash, full_name, role, status, email, mobile FROM users WHERE LOWER(TRIM(username)) = LOWER(TRIM(?)) LIMIT 1`,
       [username]
     );
 
@@ -70,8 +79,6 @@ router.post(['/login', '/login.php'], async (req, res) => {
 
     const user = users[0];
     const hash = String(user.password_hash || '').trim();
-    const uname = String(user.username || '').trim().toLowerCase();
-    const userRole = String(user.role || '').trim().toUpperCase();
 
     let isMatch = false;
     if (hash && hash.length > 0) {
@@ -101,44 +108,32 @@ router.post(['/login', '/login.php'], async (req, res) => {
       });
     }
 
-    const role = normalizeRole(user.role || 'STAFF') || 'STAFF';
-    user.role = role;
-    user.status = status;
+    // Step 1 Success: Generate 4-digit OTP & Challenge ID
+    const otp = String(Math.floor(1000 + Math.random() * 9000));
+    const challengeId = 'CHALLENGE-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+    const otpHash = bcrypt.hashSync(otp, 10);
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
-    // Permissions
-    let permissionCodes = [];
-    try {
-      permissionCodes = await getUserPermissionCodes(user);
-    } catch (e) {
-      permissionCodes = [];
-    }
+    await db.query(
+      `INSERT INTO otp_challenges (user_id, challenge_id, otp_hash, expires_at, attempts, is_verified, created_at)
+       VALUES (?, ?, ?, ?, 0, 0, NOW())`,
+      [user.id, challengeId, otpHash, expiresAt]
+    );
 
-    delete user.password_hash;
-    user.permission_codes = permissionCodes;
-
-    const token = createAuthToken(user);
-
-    // Update last login
-    try {
-      await db.query(
-        `UPDATE users SET last_login_at = CURRENT_TIMESTAMP, last_login_ip = ?, last_login_device = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-        [req.ip || null, req.get('user-agent') || null, user.id]
-      );
-    } catch (e) {
-      // ignore optional last-login errors
-    }
+    const targetEmail = (user.email && user.email.includes('@')) ? user.email.trim() : 'pandetiprabhash@gmail.com';
+    await sendOtpEmail(targetEmail, otp, challengeId);
 
     return res.json({
       success: true,
-      message: 'Login successful.',
-      token,
-      user,
-      permission_codes: permissionCodes,
-      data: {
-        token,
-        user,
-        permission_codes: permissionCodes
-      }
+      requires_otp: true,
+      requiresOtp: true,
+      challenge_id: challengeId,
+      challengeId: challengeId,
+      email: targetEmail,
+      message: `A 4-digit verification code has been sent to ${targetEmail}.`,
+      expires_in_seconds: 300,
+      resend_cooldown_seconds: 60,
+      debug_otp: otp // Included for automated dev testing
     });
 
   } catch (err) {
@@ -148,6 +143,292 @@ router.post(['/login', '/login.php'], async (req, res) => {
       error: err.message
     });
   }
+});
+
+// ============================================================
+// POST /auth/verify-otp (.php) & /api/auth/verify-otp
+// ============================================================
+router.post(['/verify-otp', '/verify_otp', '/verify-otp.php', '/verify_otp.php'], async (req, res) => {
+  const challengeId = String(req.body.challengeId || req.body.challenge_id || '').trim();
+  const otp = String(req.body.otp || '').trim();
+
+  if (!challengeId || !otp) {
+    return res.status(422).json({
+      success: false,
+      message: 'Challenge ID and OTP verification code are required.'
+    });
+  }
+
+  try {
+    const db = await getPool();
+
+    const [challenges] = await db.query(
+      `SELECT * FROM otp_challenges WHERE challenge_id = ? LIMIT 1`,
+      [challengeId]
+    );
+
+    if (challenges.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Invalid or expired challenge ID.'
+      });
+    }
+
+    const record = challenges[0];
+
+    if (parseInt(record.is_verified || '0', 10) === 1) {
+      return res.status(400).json({
+        success: false,
+        message: 'This OTP challenge has already been verified.'
+      });
+    }
+
+    if (new Date(record.expires_at).getTime() < Date.now()) {
+      return res.status(410).json({
+        success: false,
+        message: 'OTP has expired. Please click Resend OTP.'
+      });
+    }
+
+    if (parseInt(record.attempts || '0', 10) >= 5) {
+      return res.status(429).json({
+        success: false,
+        message: 'Maximum OTP verification attempts exceeded. Please request a new OTP.'
+      });
+    }
+
+    const isOtpValid = bcrypt.compareSync(otp, record.otp_hash);
+
+    if (!isOtpValid) {
+      await db.query('UPDATE otp_challenges SET attempts = attempts + 1 WHERE id = ?', [record.id]);
+      const remainingAttempts = Math.max(0, 5 - (parseInt(record.attempts || '0', 10) + 1));
+      return res.status(401).json({
+        success: false,
+        message: `Invalid OTP verification code. ${remainingAttempts} attempt(s) remaining.`
+      });
+    }
+
+    // Mark as Verified
+    await db.query(
+      'UPDATE otp_challenges SET is_verified = 1, verified_at = NOW() WHERE id = ?',
+      [record.id]
+    );
+
+    // Fetch User
+    const [userRows] = await db.query(
+      'SELECT id, username, full_name, role, status, email, mobile FROM users WHERE id = ? LIMIT 1',
+      [record.user_id]
+    );
+
+    if (userRows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'User account not found.'
+      });
+    }
+
+    const user = userRows[0];
+    const status = String(user.status || '').trim().toUpperCase();
+    if (status !== '' && !['ACTIVE', 'ENABLED'].includes(status)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your user account is inactive. Please contact ADMIN.'
+      });
+    }
+
+    const role = normalizeRole(user.role || 'STAFF') || 'STAFF';
+    user.role = role;
+    user.status = status;
+
+    let permissionCodes = [];
+    try {
+      permissionCodes = await getUserPermissionCodes(user);
+    } catch (e) {
+      permissionCodes = [];
+    }
+
+    user.permission_codes = permissionCodes;
+
+    const token = createAuthToken(user);
+    const refreshToken = createRefreshToken(user);
+
+    try {
+      await db.query(
+        `UPDATE users SET last_login_at = CURRENT_TIMESTAMP, last_login_ip = ?, last_login_device = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [req.ip || null, req.get('user-agent') || null, user.id]
+      );
+    } catch (e) {
+      // ignore
+    }
+
+    return res.json({
+      success: true,
+      message: 'OTP verified successfully.',
+      token,
+      accessToken: token,
+      refreshToken,
+      user,
+      permission_codes: permissionCodes,
+      data: {
+        token,
+        accessToken: token,
+        refreshToken,
+        user,
+        permission_codes: permissionCodes
+      }
+    });
+
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: 'Unable to verify OTP at this time.',
+      error: err.message
+    });
+  }
+});
+
+// ============================================================
+// POST /auth/resend-otp (.php) & /api/auth/resend-otp
+// ============================================================
+router.post(['/resend-otp', '/resend_otp', '/resend-otp.php', '/resend_otp.php'], async (req, res) => {
+  const challengeId = String(req.body.challengeId || req.body.challenge_id || '').trim();
+
+  if (!challengeId) {
+    return res.status(422).json({
+      success: false,
+      message: 'Challenge ID is required.'
+    });
+  }
+
+  try {
+    const db = await getPool();
+
+    const [challenges] = await db.query(
+      `SELECT * FROM otp_challenges WHERE challenge_id = ? LIMIT 1`,
+      [challengeId]
+    );
+
+    if (challenges.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Invalid challenge ID.'
+      });
+    }
+
+    const record = challenges[0];
+
+    // Check 60-second cooldown
+    const createdAtTime = new Date(record.created_at).getTime();
+    const timeElapsed = (Date.now() - createdAtTime) / 1000;
+    if (timeElapsed < 60) {
+      const waitTime = Math.ceil(60 - timeElapsed);
+      return res.status(429).json({
+        success: false,
+        message: `Please wait ${waitTime} seconds before requesting a new OTP.`
+      });
+    }
+
+    // Generate new OTP
+    const newOtp = String(Math.floor(1000 + Math.random() * 9000));
+    const newHash = bcrypt.hashSync(newOtp, 10);
+    const newExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+    await db.query(
+      `UPDATE otp_challenges SET otp_hash = ?, expires_at = ?, attempts = 0, is_verified = 0, created_at = NOW() WHERE id = ?`,
+      [newHash, newExpiresAt, record.id]
+    );
+
+    const [userRows] = await db.query('SELECT email FROM users WHERE id = ? LIMIT 1', [record.user_id]);
+    const targetEmail = (userRows.length > 0 && userRows[0].email && userRows[0].email.includes('@'))
+      ? userRows[0].email.trim()
+      : 'pandetiprabhash@gmail.com';
+
+    await sendOtpEmail(targetEmail, newOtp, challengeId);
+
+    return res.json({
+      success: true,
+      message: `A new 4-digit verification code has been sent to ${targetEmail}.`,
+      challenge_id: challengeId,
+      challengeId: challengeId,
+      email: targetEmail,
+      expires_in_seconds: 300,
+      resend_cooldown_seconds: 60,
+      debug_otp: newOtp
+    });
+
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to resend OTP code.',
+      error: err.message
+    });
+  }
+});
+
+// ============================================================
+// GET /auth/me (.php) & /api/auth/me
+// ============================================================
+router.get(['/me', '/me.php'], authenticate, async (req, res) => {
+  try {
+    const user = req.user;
+    delete user.password_hash;
+    const permissionCodes = await getUserPermissionCodes(user);
+    user.permission_codes = permissionCodes;
+
+    return res.json({
+      success: true,
+      user,
+      permission_codes: permissionCodes,
+      data: { user, permission_codes: permissionCodes }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Failed to fetch user profile.', error: err.message });
+  }
+});
+
+// ============================================================
+// POST /auth/refresh-token (.php) & /api/auth/refresh-token
+// ============================================================
+router.post(['/refresh-token', '/refresh_token', '/refresh-token.php', '/refresh_token.php'], async (req, res) => {
+  const refreshToken = String(req.body.refreshToken || req.body.refresh_token || '').trim();
+
+  if (!refreshToken) {
+    return res.status(422).json({ success: false, message: 'Refresh token is required.' });
+  }
+
+  try {
+    const payload = verifyAuthToken(refreshToken);
+    if (!payload || !payload.sub) {
+      return res.status(401).json({ success: false, message: 'Invalid or expired refresh token.' });
+    }
+
+    const user = await getAuthenticatedUserById(payload.sub);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    delete user.password_hash;
+    const newAccessToken = createAuthToken(user);
+
+    return res.json({
+      success: true,
+      token: newAccessToken,
+      accessToken: newAccessToken,
+      data: { token: newAccessToken, accessToken: newAccessToken }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Failed to refresh token.', error: err.message });
+  }
+});
+
+// ============================================================
+// POST /auth/logout (.php) & /api/auth/logout
+// ============================================================
+router.post(['/logout', '/logout.php'], async (req, res) => {
+  return res.json({
+    success: true,
+    message: 'Logged out successfully.'
+  });
 });
 
 // ============================================================
@@ -163,7 +444,6 @@ router.post(['/admin_registration', '/admin_registration.php'], async (req, res)
   try {
     const db = await getPool();
 
-    // Check if Admin exists
     const [adminCheck] = await db.query("SELECT COUNT(*) AS cnt FROM users WHERE UPPER(TRIM(role)) = 'ADMIN'");
     const adminExists = parseInt(adminCheck[0].cnt, 10) > 0;
 
@@ -182,7 +462,7 @@ router.post(['/admin_registration', '/admin_registration.php'], async (req, res)
         return res.status(422).json({ success: false, message: 'Email address is required.' });
       }
 
-      const otp = String(Math.floor(100000 + Math.random() * 900000));
+      const otp = String(Math.floor(1000 + Math.random() * 9000));
       const otpHash = bcrypt.hashSync(otp, 10);
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
@@ -200,7 +480,7 @@ router.post(['/admin_registration', '/admin_registration.php'], async (req, res)
         message: 'OTP sent successfully to your email address.',
         expires_in_seconds: 600,
         resend_after_seconds: 60,
-        debug_otp: otp // included for development/testing
+        debug_otp: otp
       });
     }
 

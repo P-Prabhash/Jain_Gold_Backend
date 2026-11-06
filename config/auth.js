@@ -19,6 +19,16 @@ function createAuthToken(user) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 }
 
+function createRefreshToken(user) {
+  const payload = {
+    sub: parseInt(user.id || 0, 10),
+    username: String(user.username || ''),
+    role: normalizeRole(user.role || ''),
+    token_type: 'refresh'
+  };
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+}
+
 function verifyAuthToken(token) {
   try {
     if (!token || typeof token !== 'string') return null;
@@ -89,6 +99,7 @@ module.exports = {
   JWT_SECRET,
   normalizeRole,
   createAuthToken,
+  createRefreshToken,
   verifyAuthToken,
   getAuthenticatedUserById,
   getAllPermissionCodes,
