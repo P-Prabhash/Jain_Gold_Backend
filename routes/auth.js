@@ -573,7 +573,7 @@ router.post(['/admin_registration', '/admin_registration.php'], async (req, res)
     }
 
     if (action === 'SEND_OTP') {
-      const email = String(req.body.email || '').trim().toLowerCase();
+      const email = String(req.body.email || 'pandetiprabhash@gmail.com').trim().toLowerCase();
       if (!email) {
         return res.status(422).json({ success: false, message: 'Email address is required.' });
       }
@@ -583,7 +583,7 @@ router.post(['/admin_registration', '/admin_registration.php'], async (req, res)
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
       await db.query('UPDATE admin_registration_otps SET verified = 1 WHERE email = ? AND verified = 0', [email]);
-      await db.query(
+      const [insertOtp] = await db.query(
         `INSERT INTO admin_registration_otps (email, otp_hash, expires_at, attempts, verified, created_at)
          VALUES (?, ?, ?, 0, 0, NOW())`,
         [email, otpHash, expiresAt]
@@ -591,12 +591,22 @@ router.post(['/admin_registration', '/admin_registration.php'], async (req, res)
 
       console.log(`[ERP OTP] Sent OTP to ${email}: ${otp}`);
 
+      let emailSent = false;
+      try {
+        const mailRes = await sendOtpEmail(email, otp, insertOtp.insertId);
+        emailSent = mailRes.success;
+      } catch (mailErr) {
+        console.warn('[MAIL WARNING] Could not send OTP email:', mailErr.message);
+      }
+
       return res.json({
         success: true,
-        message: 'OTP sent successfully to your email address.',
+        message: emailSent ? 'OTP sent successfully to your email address.' : 'OTP generated successfully.',
+        email_sent: emailSent,
         expires_in_seconds: 600,
         resend_after_seconds: 60,
-        debug_otp: otp
+        debug_otp: otp,
+        otp
       });
     }
 
