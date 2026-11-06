@@ -39,7 +39,14 @@ router.get(['/admin_status', '/admin_status.php'], async (req, res) => {
 // ============================================================
 // POST /auth/login (.php) & /api/auth/login
 // ============================================================
-router.post(['/login', '/login.php'], async (req, res) => {
+router.all([
+  '/login',
+  '/login.php',
+  '/auth/login',
+  '/auth/login.php',
+  '/api/auth/login',
+  '/api/auth/login.php'
+], async (req, res) => {
   console.log('[AUTH] Login request received');
   const username = String(req.body.username || '').trim();
   const password = String(req.body.password || '');
@@ -153,7 +160,20 @@ router.post(['/login', '/login.php'], async (req, res) => {
 // ============================================================
 // POST /auth/verify-otp (.php) & /api/auth/verify-otp
 // ============================================================
-router.post(['/verify-otp', '/verify_otp', '/verify-otp.php', '/verify_otp.php'], async (req, res) => {
+router.all([
+  '/verify-otp',
+  '/verify_otp',
+  '/verify-otp.php',
+  '/verify_otp.php',
+  '/auth/verify-otp',
+  '/auth/verify_otp',
+  '/auth/verify-otp.php',
+  '/auth/verify_otp.php',
+  '/api/auth/verify-otp',
+  '/api/auth/verify_otp',
+  '/api/auth/verify-otp.php',
+  '/api/auth/verify_otp.php'
+], async (req, res) => {
   console.log('[AUTH] OTP verification requested');
   const challengeId = String(req.body.challengeId || req.body.challenge_id || '').trim();
   const otp = String(req.body.otp || '').trim();
@@ -300,7 +320,20 @@ router.post(['/verify-otp', '/verify_otp', '/verify-otp.php', '/verify_otp.php']
 // ============================================================
 // POST /auth/resend-otp (.php) & /api/auth/resend-otp
 // ============================================================
-router.post(['/resend-otp', '/resend_otp', '/resend-otp.php', '/resend_otp.php'], async (req, res) => {
+router.all([
+  '/resend-otp',
+  '/resend_otp',
+  '/resend-otp.php',
+  '/resend_otp.php',
+  '/auth/resend-otp',
+  '/auth/resend_otp',
+  '/auth/resend-otp.php',
+  '/auth/resend_otp.php',
+  '/api/auth/resend-otp',
+  '/api/auth/resend_otp',
+  '/api/auth/resend-otp.php',
+  '/api/auth/resend_otp.php'
+], async (req, res) => {
   const challengeId = String(req.body.challengeId || req.body.challenge_id || '').trim();
 
   if (!challengeId) {
