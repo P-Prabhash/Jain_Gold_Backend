@@ -81,6 +81,7 @@ const docsRoutes = require('./routes/docs');
 // MOUNT ROUTERS
 // ============================================================
 app.use(['/api/auth', '/auth', '/auth.php'], authRoutes);
+app.use('/', authRoutes);
 app.use('/customers', customerRoutes);
 app.use('/dashboard', dashboardRoutes);
 app.use(['/gold', '/gold.php'], goldRoutes);

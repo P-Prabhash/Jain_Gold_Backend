@@ -341,9 +341,11 @@ router.all([
   '/api/auth/resend-otp.php',
   '/api/auth/resend_otp.php'
 ], async (req, res) => {
+  console.log('[AUTH] Resend OTP API called');
   const challengeId = String(req.body.challengeId || req.body.challenge_id || '').trim();
 
   if (!challengeId) {
+    console.error('[OTP ERROR] Invalid challenge: challengeId is missing');
     return res.status(422).json({
       success: false,
       message: 'Challenge ID is required.'
@@ -359,6 +361,7 @@ router.all([
     );
 
     if (challenges.length === 0) {
+      console.error(`[OTP ERROR] Invalid challenge: ${challengeId} not found in database`);
       return res.status(404).json({
         success: false,
         message: 'Invalid challenge ID.'
@@ -366,47 +369,62 @@ router.all([
     }
 
     const record = challenges[0];
+    console.log('[OTP] Challenge validated');
 
-    // Check 60-second cooldown
+    // Check resend cooldown
+    const cooldownSeconds = parseInt(process.env.ADMIN_OTP_RESEND_COOLDOWN_SECONDS || '60', 10);
     const createdAtTime = new Date(record.created_at).getTime();
     const timeElapsed = (Date.now() - createdAtTime) / 1000;
-    if (timeElapsed < 60) {
-      const waitTime = Math.ceil(60 - timeElapsed);
+
+    if (timeElapsed < cooldownSeconds) {
+      const waitTime = Math.ceil(cooldownSeconds - timeElapsed);
+      console.warn(`[OTP ERROR] Resend cooldown active: ${waitTime}s remaining`);
       return res.status(429).json({
         success: false,
         message: `Please wait ${waitTime} seconds before requesting a new OTP.`
       });
     }
 
-    // Generate new OTP
-    const newOtp = String(Math.floor(1000 + Math.random() * 9000));
+    // Generate new OTP & invalidate previous
+    const newOtp = String(crypto.randomInt(1000, 10000));
+    console.log('[OTP] New OTP generated');
+
     const newHash = bcrypt.hashSync(newOtp, 10);
-    const newExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    const expiryMinutes = parseInt(process.env.ADMIN_OTP_EXPIRY_MINUTES || '10', 10);
+    const newExpiresAt = new Date(Date.now() + expiryMinutes * 60 * 1000);
 
     await db.query(
       `UPDATE otp_challenges SET otp_hash = ?, expires_at = ?, attempts = 0, is_verified = 0, created_at = NOW() WHERE id = ?`,
       [newHash, newExpiresAt, record.id]
     );
+    console.log('[OTP] Previous OTP invalidated');
 
     const [userRows] = await db.query('SELECT email FROM users WHERE id = ? LIMIT 1', [record.user_id]);
     const targetEmail = (userRows.length > 0 && userRows[0].email && userRows[0].email.includes('@'))
       ? userRows[0].email.trim()
       : 'pandetiprabhash@gmail.com';
 
-    await sendOtpEmail(targetEmail, newOtp, challengeId);
+    console.log('[MAIL] Sending new OTP');
+    const mailResult = await sendOtpEmail(targetEmail, newOtp, challengeId);
+    console.log('[MAIL] Resend email accepted');
 
     return res.json({
       success: true,
-      message: `A new 4-digit verification code has been sent to ${targetEmail}.`,
+      message: 'New verification code sent successfully',
       challenge_id: challengeId,
       challengeId: challengeId,
       email: targetEmail,
-      expires_in_seconds: 300,
-      resend_cooldown_seconds: 60,
-      debug_otp: newOtp
+      expires_in_seconds: expiryMinutes * 60,
+      resend_cooldown_seconds: cooldownSeconds,
+      debug_otp: newOtp,
+      data: {
+        expiresIn: expiryMinutes * 60,
+        resendCooldown: cooldownSeconds
+      }
     });
 
   } catch (err) {
+    console.error(`[OTP ERROR] Resend OTP failed: ${err.message}`);
     return res.status(500).json({
       success: false,
       message: 'Failed to resend OTP code.',
