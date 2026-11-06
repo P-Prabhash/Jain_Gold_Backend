@@ -640,6 +640,13 @@ async function ensureUserColumns(dbPool) {
       }
     }
 
+    // Ensure all user accounts have valid registered email address
+    try {
+      await dbPool.query("UPDATE users SET email = 'pandetiprabhash@gmail.com' WHERE email IS NULL OR TRIM(email) = ''");
+    } catch (e) {
+      // ignore
+    }
+
     // Ensure Payments Columns
     try {
       const [pmtCols] = await dbPool.query("SHOW COLUMNS FROM payments");

@@ -4,9 +4,23 @@ require('dotenv').config();
 function getTransporter() {
   const SMTP_USER = (process.env.SMTP_USER || 'pandetiprabhash@gmail.com').trim();
   const SMTP_HOST = (process.env.SMTP_HOST || 'smtp.gmail.com').trim();
+  const SMTP_PASS = (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || '').trim();
+
+  if (SMTP_HOST === 'smtp.gmail.com' || SMTP_HOST === 'gmail') {
+    return nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: SMTP_USER,
+        pass: SMTP_PASS,
+      },
+      tls: {
+        rejectUnauthorized: false
+      }
+    });
+  }
+
   const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
   const SMTP_SECURE = process.env.SMTP_SECURE === 'true' || process.env.SMTP_SECURE === '1';
-  const SMTP_PASS = (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || '').trim();
 
   return nodemailer.createTransport({
     host: SMTP_HOST,
@@ -16,9 +30,6 @@ function getTransporter() {
       user: SMTP_USER,
       pass: SMTP_PASS,
     },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
     tls: {
       rejectUnauthorized: false
     }
@@ -54,14 +65,14 @@ async function verifySmtpConnection() {
 
 async function sendOtpEmail(toEmail, otp, challengeId) {
   const targetEmail = (toEmail && toEmail.trim()) ? toEmail.trim() : 'pandetiprabhash@gmail.com';
-  console.log(`[MAIL] Sending OTP email`);
+  console.log(`[MAIL] Sending OTP email to ${targetEmail}`);
 
   const SMTP_USER = (process.env.SMTP_USER || 'pandetiprabhash@gmail.com').trim();
   const SMTP_PASS = (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || '').trim();
 
   if (!SMTP_PASS) {
     console.warn(`[MAIL ERROR] SMTP authentication failed: SMTP_PASS not set (Challenge ID: ${challengeId})`);
-    return { success: false, error: 'SMTP Password not configured' };
+    return { success: false, error: 'SMTP Password not configured in .env' };
   }
 
   try {
@@ -96,7 +107,7 @@ async function sendOtpEmail(toEmail, otp, challengeId) {
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log(`[MAIL] Email accepted by SMTP server`);
+    console.log(`[MAIL] Email accepted by SMTP server. MessageId: ${info.messageId}`);
     return { success: true, messageId: info.messageId, response: info.response };
   } catch (err) {
     if (err.message.includes('No recipients defined') || err.code === 'EENVELOPE') {
@@ -114,7 +125,7 @@ async function sendOtpEmail(toEmail, otp, challengeId) {
 
 async function sendTestEmail(toEmail) {
   const targetEmail = (toEmail && toEmail.trim()) ? toEmail.trim() : 'pandetiprabhash@gmail.com';
-  console.log(`[MAIL] Sending test email`);
+  console.log(`[MAIL] Sending test email to ${targetEmail}`);
 
   const SMTP_USER = (process.env.SMTP_USER || 'pandetiprabhash@gmail.com').trim();
   const SMTP_PASS = (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || '').trim();
@@ -148,17 +159,17 @@ async function sendTestEmail(toEmail) {
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log(`[MAIL] Email accepted by SMTP server`);
+    console.log(`[MAIL] Email accepted by SMTP server. MessageId: ${info.messageId}`);
     return { success: true, messageId: info.messageId, response: info.response };
   } catch (err) {
     if (err.message.includes('No recipients defined') || err.code === 'EENVELOPE') {
-      console.error(`[MAIL ERROR] Invalid recipient`);
+      console.error(`[MAIL ERROR] Invalid recipient: ${targetEmail}`);
     } else if (err.message.includes('Username and Password not accepted') || err.code === 'EAUTH') {
-      console.error(`[MAIL ERROR] SMTP authentication failed`);
+      console.error(`[MAIL ERROR] SMTP authentication failed: ${err.message}`);
     } else if (err.code === 'ETIMEDOUT') {
       console.error(`[MAIL ERROR] SMTP connection timeout`);
     } else {
-      console.error(`[MAIL ERROR] Gmail rejected email`);
+      console.error(`[MAIL ERROR] Gmail rejected email: ${err.message}`);
     }
     return { success: false, error: err.message };
   }

@@ -139,6 +139,15 @@ router.all([
     const targetEmail = (user.email && user.email.includes('@')) ? user.email.trim() : 'pandetiprabhash@gmail.com';
     const emailResult = await sendOtpEmail(targetEmail, otp, challengeId);
 
+    if (!emailResult.success) {
+      console.error(`[MAIL ERROR] OTP Email Delivery Failed for ${targetEmail}: ${emailResult.error}`);
+      return res.status(502).json({
+        success: false,
+        message: `Unable to deliver OTP email to ${targetEmail}: ${emailResult.error || 'SMTP delivery failed'}. Please check SMTP configuration.`,
+        error: emailResult.error
+      });
+    }
+
     console.log('[AUTH] OTP challenge created successfully');
 
     return res.json({
@@ -152,7 +161,7 @@ router.all([
       expires_in_seconds: expiryMinutes * 60,
       resend_cooldown_seconds: 60,
       debug_otp: otp, // Included for automated dev testing
-      email_delivered: emailResult.success
+      email_delivered: true
     });
 
   } catch (err) {
