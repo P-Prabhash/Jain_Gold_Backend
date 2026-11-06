@@ -35,8 +35,7 @@ async function runAllTests() {
     if (smtpCheck.success) {
       console.log('  ✔ TEST 2 PASSED: Gmail SMTP transporter verified successfully.\n');
     } else {
-      console.warn(`  ⚠ TEST 2 NOTICE: SMTP transporter verification result: ${smtpCheck.error}`);
-      console.warn(`  (Note: Configure valid 16-character Google App Password in .env as SMTP_PASS for live delivery)\n`);
+      console.warn(`  ⚠ TEST 2 NOTICE: SMTP transporter verification result: ${smtpCheck.error}\n`);
     }
 
     // ------------------------------------------------------------
@@ -87,7 +86,10 @@ async function runAllTests() {
     // TEST 7 & 8: Verify OTP Code and Retrieve Authenticated Profile
     // ------------------------------------------------------------
     console.log('[TEST 7 & 8] Verifying 4-digit OTP code and issuing JWT access token...');
-    const [challengeRows] = await pool.query("SELECT * FROM otp_challenges WHERE challenge_id = ? LIMIT 1", [challengeId]);
+    const [challengeRows] = await pool.query(
+      "SELECT *, UNIX_TIMESTAMP(expires_at) AS expires_at_unix, UNIX_TIMESTAMP(NOW()) AS now_unix FROM otp_challenges WHERE challenge_id = ? LIMIT 1",
+      [challengeId]
+    );
     const challengeRecord = challengeRows[0];
 
     const isValidOtp = bcrypt.compareSync(otp, challengeRecord.otp_hash);
@@ -135,9 +137,10 @@ async function runAllTests() {
     console.log(' ALL 10 MANDATORY TESTS COMPLETED SUCCESSFULLY! ');
     console.log('============================================================\n');
 
+    process.exit(0);
   } catch (err) {
     console.error(`\n❌ TEST SUITE FAILURE: ${err.message}`);
-    process.exitCode = 1;
+    process.exit(1);
   }
 }
 

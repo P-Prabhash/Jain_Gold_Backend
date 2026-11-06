@@ -205,7 +205,7 @@ router.all([
     const db = await getPool();
 
     const [challenges] = await db.query(
-      `SELECT * FROM otp_challenges WHERE challenge_id = ? LIMIT 1`,
+      `SELECT *, UNIX_TIMESTAMP(expires_at) AS expires_at_unix, UNIX_TIMESTAMP(NOW()) AS now_unix FROM otp_challenges WHERE challenge_id = ? LIMIT 1`,
       [challengeId]
     );
 
@@ -225,7 +225,11 @@ router.all([
       });
     }
 
-    if (new Date(record.expires_at).getTime() < Date.now()) {
+    const expiresAtUnix = parseInt(record.expires_at_unix || '0', 10);
+    const nowUnix = parseInt(record.now_unix || Math.floor(Date.now() / 1000), 10);
+
+    if (expiresAtUnix > 0 && nowUnix > expiresAtUnix) {
+      console.warn(`[OTP ERROR] OTP Expired: now (${nowUnix}) > expires (${expiresAtUnix})`);
       return res.status(410).json({
         success: false,
         message: 'OTP has expired. Please click Resend OTP.'
@@ -365,7 +369,7 @@ router.all([
     const db = await getPool();
 
     const [challenges] = await db.query(
-      `SELECT * FROM otp_challenges WHERE challenge_id = ? LIMIT 1`,
+      `SELECT *, UNIX_TIMESTAMP(created_at) AS created_at_unix, UNIX_TIMESTAMP(NOW()) AS now_unix FROM otp_challenges WHERE challenge_id = ? LIMIT 1`,
       [challengeId]
     );
 
@@ -382,10 +386,11 @@ router.all([
 
     // Check resend cooldown
     const cooldownSeconds = parseInt(process.env.ADMIN_OTP_RESEND_COOLDOWN_SECONDS || '60', 10);
-    const createdAtTime = new Date(record.created_at).getTime();
-    const timeElapsed = (Date.now() - createdAtTime) / 1000;
+    const createdAtUnix = parseInt(record.created_at_unix || '0', 10);
+    const nowUnix = parseInt(record.now_unix || Math.floor(Date.now() / 1000), 10);
+    const timeElapsed = nowUnix - createdAtUnix;
 
-    if (timeElapsed < cooldownSeconds) {
+    if (createdAtUnix > 0 && timeElapsed >= 0 && timeElapsed < cooldownSeconds) {
       const waitTime = Math.ceil(cooldownSeconds - timeElapsed);
       console.warn(`[OTP ERROR] Resend cooldown active: ${waitTime}s remaining`);
       return res.status(429).json({
