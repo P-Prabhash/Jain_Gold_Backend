@@ -4,7 +4,6 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-import '../config/constants.dart';
 import '../models/customer.dart';
 import '../models/gold_item.dart';
 import '../models/loan.dart';
@@ -16,20 +15,10 @@ import '../models/receipt_data.dart';
 import 'storage_service.dart';
 
 class ApiService {
-  static String _customBaseUrl = AppConstants.defaultApiBaseUrl;
+  static String get baseUrl => 'https://jain-gold-backend.onrender.com';
+  static String get activeBaseUrl => 'https://jain-gold-backend.onrender.com';
 
-  static String get baseUrl {
-    if (_customBaseUrl.isEmpty || _customBaseUrl.contains('localhost:5000') || _customBaseUrl.contains('localhost:80')) {
-      return 'https://jain-gold-backend.onrender.com';
-    }
-    return _customBaseUrl;
-  }
-
-  static set baseUrl(String value) {
-    _customBaseUrl = value;
-  }
-
-  static String get activeBaseUrl => baseUrl;
+  static set baseUrl(String value) {}
   static String? authToken;
 
   // Current authenticated user for role checks outside AuthProvider.
