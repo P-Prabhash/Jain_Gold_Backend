@@ -601,6 +601,11 @@ async function ensureSchema(dbPool) {
           console.log(`[DATABASE] Verified Admin account: '${adminUser.username}' (Status: ACTIVE)`);
         }
       }
+
+      // Ensure customer, gold, and loan statuses are initialized
+      await dbPool.query("UPDATE customers SET status = 'ACTIVE' WHERE status IS NULL OR TRIM(status) = '' OR LOWER(status) = 'active'");
+      await dbPool.query("UPDATE gold_items SET status = 'AVAILABLE' WHERE status IS NULL OR TRIM(status) = ''");
+      await dbPool.query("UPDATE loans SET status = 'ACTIVE' WHERE status IS NULL OR TRIM(status) = ''");
     } catch (adminErr) {
       console.warn(`[DATABASE SEED WARNING] Admin user check/seed: ${adminErr.message}`);
     }

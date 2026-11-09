@@ -46,7 +46,7 @@ router.get(['/list', '/list.php'], requirePermission('customer.view'), async (re
       FROM customers c
       LEFT JOIN gold_items g ON c.id = g.customer_id
       LEFT JOIN loans l ON c.id = l.customer_id
-      WHERE c.status = 'ACTIVE'
+      WHERE (c.status IS NULL OR c.status = '' OR UPPER(c.status) != 'INACTIVE')
     `;
 
     const params = [];
@@ -325,7 +325,7 @@ router.get(['/search_additional', '/search_additional.php'], requirePermission('
       FROM customers c
       LEFT JOIN loans l ON l.customer_id = c.id
       LEFT JOIN gold_items g ON g.customer_id = c.id
-      WHERE c.status = 'ACTIVE'
+      WHERE (c.status IS NULL OR c.status = '' OR UPPER(c.status) != 'INACTIVE')
     `;
 
     const params = [];
