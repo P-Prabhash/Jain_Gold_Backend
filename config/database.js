@@ -13,7 +13,7 @@ async function getPool() {
   const dbPort = parseInt(process.env.DB_PORT || '3306', 10);
   const dbUser = process.env.DB_USER || 'root';
   const dbPass = process.env.DB_PASS !== undefined ? process.env.DB_PASS : '';
-  const dbName = process.env.DB_NAME || 'backend_api';
+  const dbName = process.env.DB_NAME || 'defaultdb';
 
   // Determine SSL requirement for cloud databases like Aiven MySQL
   const isRemote = dbHost && !['127.0.0.1', 'localhost', '0.0.0.0'].includes(dbHost);
