@@ -3,14 +3,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_confetti/flutter_confetti.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/theme.dart';
 import '../../providers/auth_provider.dart';
-import '../../widgets/app_logo.dart';
-import '../../widgets/app_notification.dart';
+import '../../widgets/app_toast.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
   final String challengeId;
@@ -56,15 +54,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
     _startExpireTimer();
     _startResendTimer();
-
-    // Auto fill debug OTP if in dev mode
-    if (widget.debugOtp != null && widget.debugOtp!.length == 4) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        for (int i = 0; i < 4; i++) {
-          _controllers[i].text = widget.debugOtp![i];
-        }
-      });
-    }
   }
 
   @override
@@ -123,12 +112,12 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
     final otp = _otpCode;
     if (otp.length != 4) {
-      AppNotification.warning(context, 'Please enter the complete 4-digit OTP.');
+      AppToast.showWarning(context, 'Please enter the complete 4-digit OTP.');
       return;
     }
 
     if (_expireSeconds <= 0) {
-      AppNotification.error(context, 'OTP has expired. Please click RESEND OTP.');
+      AppToast.showError(context, 'OTP has expired. Please click RESEND OTP.');
       return;
     }
 
@@ -144,19 +133,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         final user = authProvider.currentUser;
         final String fullName = user?['full_name']?.toString() ?? user?['username']?.toString() ?? 'Admin';
 
-        // Celebratory confetti explosion on successful OTP verification
-        Confetti.launch(
-          context,
-          options: const ConfettiOptions(
-            particleCount: 140,
-            spread: 90,
-            y: 0.5,
-          ),
-        );
+        AppToast.showSuccess(context, 'OTP Verified! Welcome, $fullName');
 
-        AppNotification.success(context, 'OTP Verified! Welcome, $fullName');
-
-        await Future.delayed(const Duration(milliseconds: 1000));
+        await Future.delayed(const Duration(milliseconds: 600));
         if (!mounted) return;
 
         Navigator.of(context).pushNamedAndRemoveUntil('/main', (route) => false);
@@ -164,11 +143,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       }
 
       final msg = authProvider.errorMessage ?? 'Invalid OTP code. Please try again.';
-      AppNotification.error(context, msg);
+      AppToast.showError(context, msg);
     } catch (e) {
       if (!mounted) return;
       final msg = e.toString().replaceFirst('Exception: ', '');
-      AppNotification.error(context, msg);
+      AppToast.showError(context, msg);
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -199,25 +178,18 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         }
         _focusNodes[0].requestFocus();
 
-        if (res['debug_otp'] != null && res['debug_otp'].toString().length == 4) {
-          final debugOtpStr = res['debug_otp'].toString();
-          for (int i = 0; i < 4; i++) {
-            _controllers[i].text = debugOtpStr[i];
-          }
-        }
-
         _startExpireTimer();
         _startResendTimer();
 
         final msg = res['message']?.toString() ?? 'A new 4-digit verification code has been sent to $_targetEmail.';
-        AppNotification.info(context, msg);
+        AppToast.showInfo(context, msg);
       } else {
         final msg = res['message']?.toString() ?? 'Failed to resend OTP.';
-        AppNotification.error(context, msg);
+        AppToast.showError(context, msg);
       }
     } catch (e) {
       if (!mounted) return;
-      AppNotification.error(context, 'Error requesting new OTP.');
+      AppToast.showError(context, 'Error requesting new OTP.');
     } finally {
       if (mounted) {
         setState(() => _isResending = false);
@@ -289,7 +261,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
             width: 120,
             height: 120,
             decoration: BoxDecoration(
+              color: Colors.white,
               shape: BoxShape.circle,
+              border: Border.all(color: AppTheme.goldPrimary, width: 3.5),
               boxShadow: [
                 BoxShadow(
                   color: AppTheme.goldPrimary.withValues(alpha: 0.40),
@@ -298,7 +272,12 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                 ),
               ],
             ),
-            child: const AppLogo(size: 120),
+            child: const Center(
+              child: Text(
+                '🕉️',
+                style: TextStyle(fontSize: 58, height: 1.0),
+              ),
+            ),
           ),
           const SizedBox(height: 32),
           Text(
@@ -364,7 +343,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
           ),
           const SizedBox(height: 28),
 
-          // 4-DIGIT OTP BOXES
+          // 4-DIGIT OTP BOXES (EMPTY FOR INPUT FROM EMAIL INBOX)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: List.generate(4, (index) => _buildOtpBox(index)),
