@@ -606,6 +606,32 @@ async function ensureSchema(dbPool) {
       await dbPool.query("UPDATE customers SET status = 'ACTIVE' WHERE status IS NULL OR TRIM(status) = '' OR LOWER(status) = 'active'");
       await dbPool.query("UPDATE gold_items SET status = 'AVAILABLE' WHERE status IS NULL OR TRIM(status) = ''");
       await dbPool.query("UPDATE loans SET status = 'ACTIVE' WHERE status IS NULL OR TRIM(status) = ''");
+
+      // Auto-seed initial dataset from SQL backups if customers table is completely empty
+      try {
+        const [custCount] = await dbPool.query("SELECT COUNT(*) AS cnt FROM customers");
+        if (parseInt(custCount[0].cnt, 10) === 0) {
+          const backupsDir = path.join(__dirname, '..', 'backups');
+          if (fs.existsSync(backupsDir)) {
+            const files = fs.readdirSync(backupsDir).filter(f => f.endsWith('.sql')).sort().reverse();
+            if (files.length > 0) {
+              const backupPath = path.join(backupsDir, files[0]);
+              const sqlContent = fs.readFileSync(backupPath, 'utf8');
+              const statements = sqlContent.split(/;\s*$/m).map(s => s.trim()).filter(s => s.length > 0 && !s.startsWith('--'));
+              await dbPool.query('SET FOREIGN_KEY_CHECKS = 0');
+              for (const stmt of statements) {
+                if (stmt) {
+                  try { await dbPool.query(stmt); } catch (e) {}
+                }
+              }
+              await dbPool.query('SET FOREIGN_KEY_CHECKS = 1');
+              console.log(`[DATABASE] Auto-populated initial dataset from backup file '${files[0]}'`);
+            }
+          }
+        }
+      } catch (seedDatasetErr) {
+        console.warn(`[DATABASE DATASET WARNING] Auto-seed initial dataset: ${seedDatasetErr.message}`);
+      }
     } catch (adminErr) {
       console.warn(`[DATABASE SEED WARNING] Admin user check/seed: ${adminErr.message}`);
     }
