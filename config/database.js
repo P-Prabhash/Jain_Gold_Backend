@@ -610,7 +610,7 @@ async function ensureSchema(dbPool) {
       // Auto-seed initial dataset from SQL backups if customers table is completely empty
       try {
         const [custCount] = await dbPool.query("SELECT COUNT(*) AS cnt FROM customers");
-        if (parseInt(custCount[0].cnt, 10) === 0) {
+        if (parseInt(custCount[0].cnt, 10) < 23) {
           const backupsDir = path.join(__dirname, '..', 'backups');
           if (fs.existsSync(backupsDir)) {
             const files = fs.readdirSync(backupsDir).filter(f => f.endsWith('.sql')).sort().reverse();
