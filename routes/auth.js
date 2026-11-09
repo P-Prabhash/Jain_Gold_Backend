@@ -599,9 +599,13 @@ router.post(['/admin_registration', '/admin_registration.php'], async (req, res)
         console.warn('[MAIL WARNING] Could not send OTP email:', mailErr.message);
       }
 
+      const responseMsg = emailSent
+        ? 'OTP sent successfully to your email address.'
+        : `OTP code generated (${otp}). Configure SMTP_PASS in Render Environment for live inbox delivery.`;
+
       return res.json({
         success: true,
-        message: emailSent ? 'OTP sent successfully to your email address.' : 'OTP generated successfully.',
+        message: responseMsg,
         email_sent: emailSent,
         expires_in_seconds: 600,
         resend_after_seconds: 60,
