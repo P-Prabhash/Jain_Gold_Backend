@@ -602,10 +602,16 @@ async function ensureSchema(dbPool) {
         }
       }
 
-      // Ensure customer, gold, and loan statuses are initialized
-      await dbPool.query("UPDATE customers SET status = 'ACTIVE' WHERE status IS NULL OR TRIM(status) = '' OR LOWER(status) = 'active'");
-      await dbPool.query("UPDATE gold_items SET status = 'AVAILABLE' WHERE status IS NULL OR TRIM(status) = ''");
-      await dbPool.query("UPDATE loans SET status = 'ACTIVE' WHERE status IS NULL OR TRIM(status) = ''");
+      // Clean up dummy sample records if real CUST-1001 database records exist
+      try {
+        const [realCust] = await dbPool.query("SELECT id FROM customers WHERE customer_code LIKE 'CUST-10%' LIMIT 1");
+        if (realCust.length > 0) {
+          await dbPool.query("DELETE FROM customers WHERE customer_code LIKE 'CUST-0000%'");
+          console.log('[DATABASE] Cleaned up dummy sample records. Displaying real database customer records (CUST-1001+).');
+        }
+      } catch (e) {
+        // ignore
+      }
 
       // Auto-seed initial dataset from SQL backups if customers table is completely empty
       try {
