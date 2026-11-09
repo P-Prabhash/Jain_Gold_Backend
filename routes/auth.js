@@ -715,4 +715,22 @@ router.post(['/create_admin', '/create_admin.php'], async (req, res) => {
   return router.handle(req, res);
 });
 
+// ============================================================
+// TEST EMAIL SMTP ENDPOINT
+// ============================================================
+router.all(['/test_email', '/test_email.php'], async (req, res) => {
+  const email = String(req.query.email || req.body.email || 'pandetiprabhash@gmail.com').trim();
+  try {
+    const { sendTestEmail } = require('../utils/emailHelper');
+    const result = await sendTestEmail(email);
+    return res.json({
+      success: result.success,
+      message: result.success ? `Test email sent to ${email}` : `Failed to send email: ${result.error}`,
+      details: result
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;
