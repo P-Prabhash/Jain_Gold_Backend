@@ -16,14 +16,20 @@ import '../models/receipt_data.dart';
 import 'storage_service.dart';
 
 class ApiService {
-  static String baseUrl = AppConstants.defaultApiBaseUrl;
+  static String _customBaseUrl = AppConstants.defaultApiBaseUrl;
 
-  static String get activeBaseUrl {
-    if (baseUrl.isEmpty || baseUrl.contains('localhost:5000') || baseUrl.contains('localhost:80')) {
+  static String get baseUrl {
+    if (_customBaseUrl.isEmpty || _customBaseUrl.contains('localhost:5000') || _customBaseUrl.contains('localhost:80')) {
       return 'https://jain-gold-backend.onrender.com';
     }
-    return baseUrl;
+    return _customBaseUrl;
   }
+
+  static set baseUrl(String value) {
+    _customBaseUrl = value;
+  }
+
+  static String get activeBaseUrl => baseUrl;
   static String? authToken;
 
   // Current authenticated user for role checks outside AuthProvider.
