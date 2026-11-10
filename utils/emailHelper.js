@@ -96,7 +96,7 @@ async function sendOtpEmail(toEmail, otp, challengeId) {
             <span style="font-size: 36px; font-weight: 900; letter-spacing: 12px; color: #0c101b;">${otp}</span>
           </div>
 
-          <p style="color: #555555; font-size: 13px;">This verification code is valid for 10 minutes.</p>
+          <p style="color: #555555; font-size: 13px;">This verification code is valid for 5 minutes.</p>
           <p style="color: #d32f2f; font-size: 13px; font-weight: bold;">Do not share this code with anyone.</p>
 
           <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #eaeaea; color: #0c101b; font-weight: bold; font-size: 13px;">
