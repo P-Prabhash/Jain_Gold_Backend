@@ -634,16 +634,6 @@ async function ensureSchema(dbPool) {
       } catch (restoreErr) {
         console.warn(`[DATABASE RESTORE WARNING] ${restoreErr.message}`);
       }
-                }
-              }
-              await dbPool.query('SET FOREIGN_KEY_CHECKS = 1');
-              console.log(`[DATABASE] Auto-populated initial dataset from backup file '${files[0]}'`);
-            }
-          }
-        }
-      } catch (seedDatasetErr) {
-        console.warn(`[DATABASE DATASET WARNING] Auto-seed initial dataset: ${seedDatasetErr.message}`);
-      }
     } catch (adminErr) {
       console.warn(`[DATABASE SEED WARNING] Admin user check/seed: ${adminErr.message}`);
     }
