@@ -634,6 +634,11 @@ async function ensureSchema(dbPool) {
       } catch (restoreErr) {
         console.warn(`[DATABASE RESTORE WARNING] ${restoreErr.message}`);
       }
+      // Format customer codes to CUST-1001+ format
+      try {
+        await dbPool.query("UPDATE customers SET customer_code = REPLACE(customer_code, 'CUST-00000', 'CUST-100') WHERE customer_code LIKE 'CUST-00000%'");
+        await dbPool.query("UPDATE customers SET customer_code = REPLACE(customer_code, 'CUST-0000', 'CUST-10') WHERE customer_code LIKE 'CUST-0000%'");
+      } catch (e) {}
     } catch (adminErr) {
       console.warn(`[DATABASE SEED WARNING] Admin user check/seed: ${adminErr.message}`);
     }
