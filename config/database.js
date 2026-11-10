@@ -602,11 +602,11 @@ async function ensureSchema(dbPool) {
         }
       }
 
-      // Auto-restore real 31 customer accounts (CUST-1001+) if missing from database
+      // Auto-restore real customer accounts (Prabhas, Dhamu, etc.) from backup SQL file
       try {
-        const [checkReal] = await dbPool.query("SELECT id FROM customers WHERE customer_code = 'CUST-1001' LIMIT 1");
-        if (checkReal.length === 0) {
-          console.log('[DATABASE] Restoring 31 real customer accounts from backup SQL file...');
+        const [checkPrabhas] = await dbPool.query("SELECT id FROM customers WHERE name = 'Prabhas' OR customer_code = 'CUST-1006' LIMIT 1");
+        if (checkPrabhas.length === 0) {
+          console.log('[DATABASE] Restoring real customer accounts (Prabhas, Dhamu, etc.) from backup SQL file...');
           const backupsDir = path.join(__dirname, '..', 'backups');
           if (fs.existsSync(backupsDir)) {
             const files = fs.readdirSync(backupsDir).filter(f => f.endsWith('.sql')).sort().reverse();
@@ -616,7 +616,7 @@ async function ensureSchema(dbPool) {
               const statements = sqlContent.split(/;\s*$/m).map(s => s.trim()).filter(s => s.length > 0 && !s.startsWith('--'));
 
               await dbPool.query('SET FOREIGN_KEY_CHECKS = 0');
-              await dbPool.query("DELETE FROM customers WHERE customer_code LIKE 'CUST-0000%'");
+              await dbPool.query("DELETE FROM customers WHERE customer_code LIKE 'CUST-0000%' OR name IN ('Rajesh Kumar', 'Anita Sharma', 'Suresh Patel', 'Vikram Singh', 'Sunita Devi')");
 
               for (const stmt of statements) {
                 if (stmt) {
@@ -625,11 +625,11 @@ async function ensureSchema(dbPool) {
               }
 
               await dbPool.query('SET FOREIGN_KEY_CHECKS = 1');
-              console.log(`[DATABASE] Successfully restored 31 real customer accounts (CUST-1001+) from '${files[0]}'`);
+              console.log(`[DATABASE] Successfully restored real customer accounts (Prabhas, Dhamu, etc.) from '${files[0]}'`);
             }
           }
         } else {
-          await dbPool.query("DELETE FROM customers WHERE customer_code LIKE 'CUST-0000%'");
+          await dbPool.query("DELETE FROM customers WHERE customer_code LIKE 'CUST-0000%' OR name IN ('Rajesh Kumar', 'Anita Sharma', 'Suresh Patel', 'Vikram Singh', 'Sunita Devi')");
         }
       } catch (restoreErr) {
         console.warn(`[DATABASE RESTORE WARNING] ${restoreErr.message}`);
