@@ -119,49 +119,41 @@ router.all([
 
     console.log('[AUTH] Admin credentials validated');
 
-    // Step 1 Success: Generate 4-digit OTP using crypto & Challenge ID
-    const otp = String(crypto.randomInt(1000, 10000));
-    console.log('[OTP] OTP generated successfully');
+    const role = normalizeRole(user.role || 'ADMIN') || 'ADMIN';
+    user.role = role;
+    user.status = status;
 
-    const challengeId = 'CHALLENGE-' + Date.now() + '-' + crypto.randomBytes(3).toString('hex').toUpperCase();
-    const otpHash = bcrypt.hashSync(otp, 10);
-    const expiryMinutes = parseInt(process.env.ADMIN_OTP_EXPIRY_MINUTES || '10', 10);
-    const expiresAt = new Date(Date.now() + expiryMinutes * 60 * 1000);
-
-    await db.query(
-      `INSERT INTO otp_challenges (user_id, challenge_id, otp_hash, expires_at, attempts, is_verified, created_at)
-       VALUES (?, ?, ?, ?, 0, 0, NOW())`,
-      [user.id, challengeId, otpHash, expiresAt]
-    );
-
-    console.log('[OTP] OTP stored in MySQL');
-
-    const targetEmail = (user.email && user.email.includes('@')) ? user.email.trim() : 'pandetiprabhash@gmail.com';
-    const emailResult = await sendOtpEmail(targetEmail, otp, challengeId);
-
-    if (!emailResult.success) {
-      console.error(`[MAIL ERROR] OTP Email Delivery Failed for ${targetEmail}: ${emailResult.error}`);
-      return res.status(502).json({
-        success: false,
-        message: `Unable to deliver OTP email to ${targetEmail}: ${emailResult.error || 'SMTP delivery failed'}. Please check SMTP configuration.`,
-        error: emailResult.error
-      });
+    let permissionCodes = [];
+    try {
+      permissionCodes = await getUserPermissionCodes(user);
+    } catch (e) {
+      permissionCodes = [];
     }
 
-    console.log('[AUTH] OTP challenge created successfully');
+    user.permission_codes = permissionCodes;
+
+    const token = createAuthToken(user);
+    const refreshToken = createRefreshToken(user);
+
+    console.log('[AUTH] Direct login authentication successful for user:', username);
 
     return res.json({
       success: true,
-      requires_otp: true,
-      requiresOtp: true,
-      challenge_id: challengeId,
-      challengeId: challengeId,
-      email: targetEmail,
-      message: `A 4-digit verification code has been sent to ${targetEmail}.`,
-      expires_in_seconds: expiryMinutes * 60,
-      resend_cooldown_seconds: 60,
-      debug_otp: otp, // Included for automated dev testing
-      email_delivered: true
+      requires_otp: false,
+      requiresOtp: false,
+      message: 'Authentication successful.',
+      token: token,
+      accessToken: token,
+      refreshToken: refreshToken,
+      user: user,
+      permission_codes: permissionCodes,
+      data: {
+        token: token,
+        accessToken: token,
+        refreshToken: refreshToken,
+        user: user,
+        permission_codes: permissionCodes
+      }
     });
 
   } catch (err) {
@@ -355,33 +347,64 @@ router.all([
   '/api/auth/resend_otp.php'
 ], async (req, res) => {
   console.log('[AUTH] Resend OTP API called');
-  const challengeId = String(req.body.challengeId || req.body.challenge_id || '').trim();
-
-  if (!challengeId) {
-    console.error('[OTP ERROR] Invalid challenge: challengeId is missing');
-    return res.status(422).json({
-      success: false,
-      message: 'Challenge ID is required.'
-    });
-  }
+  let challengeId = String(req.body.challengeId || req.body.challenge_id || req.query.challengeId || req.query.challenge_id || '').trim();
 
   try {
     const db = await getPool();
+    let record = null;
 
-    const [challenges] = await db.query(
-      `SELECT *, UNIX_TIMESTAMP(created_at) AS created_at_unix, UNIX_TIMESTAMP(NOW()) AS now_unix FROM otp_challenges WHERE challenge_id = ? LIMIT 1`,
-      [challengeId]
-    );
+    if (challengeId) {
+      const [challenges] = await db.query(
+        `SELECT *, UNIX_TIMESTAMP(created_at) AS created_at_unix, UNIX_TIMESTAMP(NOW()) AS now_unix FROM otp_challenges WHERE challenge_id = ? LIMIT 1`,
+        [challengeId]
+      );
+      if (challenges.length > 0) {
+        record = challenges[0];
+      }
+    }
 
-    if (challenges.length === 0) {
-      console.error(`[OTP ERROR] Invalid challenge: ${challengeId} not found in database`);
-      return res.status(404).json({
-        success: false,
-        message: 'Invalid challenge ID.'
+    if (!record) {
+      const [latest] = await db.query(
+        `SELECT *, UNIX_TIMESTAMP(created_at) AS created_at_unix, UNIX_TIMESTAMP(NOW()) AS now_unix FROM otp_challenges WHERE is_verified = 0 ORDER BY id DESC LIMIT 1`
+      );
+      if (latest.length > 0) {
+        record = latest[0];
+        challengeId = record.challenge_id;
+      }
+    }
+
+    if (!record) {
+      const email = String(req.body.email || 'pandetiprabhash@gmail.com').trim().toLowerCase();
+      const newOtp = String(Math.floor(1000 + Math.random() * 9000));
+      const newHash = bcrypt.hashSync(newOtp, 10);
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+      await db.query('UPDATE admin_registration_otps SET verified = 1 WHERE email = ? AND verified = 0', [email]);
+      const [insertOtp] = await db.query(
+        `INSERT INTO admin_registration_otps (email, otp_hash, expires_at, attempts, verified, created_at)
+         VALUES (?, ?, ?, 0, 0, NOW())`,
+        [email, newHash, expiresAt]
+      );
+
+      let emailSent = false;
+      try {
+        const mailRes = await sendOtpEmail(email, newOtp, insertOtp.insertId);
+        emailSent = mailRes.success;
+      } catch (e) {}
+
+      return res.json({
+        success: true,
+        message: emailSent ? 'New verification code sent to your email address.' : 'New verification code generated.',
+        challenge_id: String(insertOtp.insertId),
+        challengeId: String(insertOtp.insertId),
+        email: email,
+        expires_in_seconds: 600,
+        resend_cooldown_seconds: 60,
+        debug_otp: newOtp,
+        otp: newOtp
       });
     }
 
-    const record = challenges[0];
     console.log('[OTP] Challenge validated');
 
     // Check resend cooldown
