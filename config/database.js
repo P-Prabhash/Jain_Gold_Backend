@@ -616,7 +616,7 @@ async function ensureSchema(dbPool) {
               const statements = sqlContent.split(/;\s*$/m).map(s => s.trim()).filter(s => s.length > 0 && !s.startsWith('--'));
 
               await dbPool.query('SET FOREIGN_KEY_CHECKS = 0');
-              await dbPool.query("DELETE FROM customers WHERE customer_code LIKE 'CUST-0000%' OR name IN ('Rajesh Kumar', 'Anita Sharma', 'Suresh Patel', 'Vikram Singh', 'Sunita Devi')");
+              await dbPool.query("DELETE FROM customers WHERE customer_code LIKE 'CUST-0000%'");
 
               for (const stmt of statements) {
                 if (stmt) {
@@ -628,8 +628,6 @@ async function ensureSchema(dbPool) {
               console.log(`[DATABASE] Successfully restored real customer accounts (Prabhas, Dhamu, etc.) from '${files[0]}'`);
             }
           }
-        } else {
-          await dbPool.query("DELETE FROM customers WHERE customer_code LIKE 'CUST-0000%' OR name IN ('Rajesh Kumar', 'Anita Sharma', 'Suresh Patel', 'Vikram Singh', 'Sunita Devi')");
         }
       } catch (restoreErr) {
         console.warn(`[DATABASE RESTORE WARNING] ${restoreErr.message}`);
