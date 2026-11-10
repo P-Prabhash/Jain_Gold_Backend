@@ -602,21 +602,11 @@ async function ensureSchema(dbPool) {
         }
       }
 
-      // Clean up dummy sample records if real CUST-1001 database records exist
+      // Auto-restore real 31 customer accounts (CUST-1001+) if missing from database
       try {
-        const [realCust] = await dbPool.query("SELECT id FROM customers WHERE customer_code LIKE 'CUST-10%' LIMIT 1");
-        if (realCust.length > 0) {
-          await dbPool.query("DELETE FROM customers WHERE customer_code LIKE 'CUST-0000%'");
-          console.log('[DATABASE] Cleaned up dummy sample records. Displaying real database customer records (CUST-1001+).');
-        }
-      } catch (e) {
-        // ignore
-      }
-
-      // Auto-seed initial dataset from SQL backups if customers table is completely empty
-      try {
-        const [custCount] = await dbPool.query("SELECT COUNT(*) AS cnt FROM customers");
-        if (parseInt(custCount[0].cnt, 10) < 23) {
+        const [checkReal] = await dbPool.query("SELECT id FROM customers WHERE customer_code = 'CUST-1001' LIMIT 1");
+        if (checkReal.length === 0) {
+          console.log('[DATABASE] Restoring 31 real customer accounts from backup SQL file...');
           const backupsDir = path.join(__dirname, '..', 'backups');
           if (fs.existsSync(backupsDir)) {
             const files = fs.readdirSync(backupsDir).filter(f => f.endsWith('.sql')).sort().reverse();
@@ -624,10 +614,26 @@ async function ensureSchema(dbPool) {
               const backupPath = path.join(backupsDir, files[0]);
               const sqlContent = fs.readFileSync(backupPath, 'utf8');
               const statements = sqlContent.split(/;\s*$/m).map(s => s.trim()).filter(s => s.length > 0 && !s.startsWith('--'));
+
               await dbPool.query('SET FOREIGN_KEY_CHECKS = 0');
+              await dbPool.query("DELETE FROM customers WHERE customer_code LIKE 'CUST-0000%'");
+
               for (const stmt of statements) {
                 if (stmt) {
                   try { await dbPool.query(stmt); } catch (e) {}
+                }
+              }
+
+              await dbPool.query('SET FOREIGN_KEY_CHECKS = 1');
+              console.log(`[DATABASE] Successfully restored 31 real customer accounts (CUST-1001+) from '${files[0]}'`);
+            }
+          }
+        } else {
+          await dbPool.query("DELETE FROM customers WHERE customer_code LIKE 'CUST-0000%'");
+        }
+      } catch (restoreErr) {
+        console.warn(`[DATABASE RESTORE WARNING] ${restoreErr.message}`);
+      }
                 }
               }
               await dbPool.query('SET FOREIGN_KEY_CHECKS = 1');
