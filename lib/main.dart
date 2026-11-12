@@ -346,18 +346,18 @@ class _MainScreenState extends State<MainScreen> {
         // ================================================================
 
         if (action == 'new_customer') {
-          showResponsiveDialog(context: context, child: const NewCustomerScreen());
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NewCustomerScreen()));
         } else if (action == 'new_loan') {
-          showResponsiveDialog(context: context, child: const CreateNewLoanScreen());
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CreateNewLoanScreen()));
         } else if (action == 'additional_loan') {
-          showResponsiveDialog(context: context, child: const CreateAdditionalLoanScreen());
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CreateAdditionalLoanScreen()));
         } else if (action == 'new_payment') {
-          showResponsiveDialog(context: context, child: const PaymentScreen());
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PaymentScreen()));
         } else if (action == 'partial_release') {
-          showResponsiveDialog(context: context, child: const PartialReleaseScreen());
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PartialReleaseScreen()));
         } else if (action == 'close_loan' && initialParams.containsKey('loan_id')) {
           final loanId = initialParams['loan_id'];
-          showResponsiveDialog(context: context, child: CloseLoanScreen(loanId: loanId));
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => CloseLoanScreen(loanId: loanId)));
         } else if (action == 'user_management') {
           setState(() {
             _currentTabIndex = 9;
