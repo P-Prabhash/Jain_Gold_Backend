@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getPool } = require('../config/database');
 const { requirePermission } = require('../middleware/authMiddleware');
+const { logActivity, getStaffInfo } = require('../utils/loggerHelper');
 
 // ============================================================
 // GET /payments/list
@@ -73,6 +74,8 @@ router.post(['/create', '/payments/create'], requirePermission('payment.create')
   try {
     await conn.beginTransaction();
 
+    const staff = getStaffInfo(req);
+
     const [loanRows] = await conn.query('SELECT * FROM loans WHERE id = ? FOR UPDATE', [loanId]);
     if (loanRows.length === 0) {
       await conn.rollback();
@@ -127,9 +130,13 @@ router.post(['/create', '/payments/create'], requirePermission('payment.create')
     const [pmtRes] = await conn.query(
       `INSERT INTO payments (
         receipt_no, loan_id, customer_id, payment_type, amount, manual_interest, total_received, payment_date, payment_time,
-        payment_mode, previous_paid, new_total_paid, remaining_balance, remarks, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'STAFF')`,
-      [receiptNo, loanId, customerId, paymentType, principalPayment, manualInterest, totalAmountReceived, paymentDate, paymentTime, paymentMode, currentTotalPaid, newTotalPaid, newRemainingBalance, remarks || null]
+        payment_mode, previous_paid, new_total_paid, remaining_balance, remarks, created_by_id, collected_by, collected_by_name, created_by, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [
+        receiptNo, loanId, customerId, paymentType, principalPayment, manualInterest, totalAmountReceived, paymentDate, paymentTime,
+        paymentMode, currentTotalPaid, newTotalPaid, newRemainingBalance, remarks || null,
+        staff.staffId, staff.staffId, staff.staffNameSnapshot, staff.staffNameSnapshot
+      ]
     );
 
     const paymentId = pmtRes.insertId;
@@ -140,16 +147,29 @@ router.post(['/create', '/payments/create'], requirePermission('payment.create')
       [paymentId, principalPayment, manualInterest]
     );
 
-    // Update loan
+    // Update loan status & staff tracking if closed
     const newLoanStatus = newRemainingBalance <= 0 ? 'CLOSED' : 'PARTIALLY_PAID';
     const closedDate = newRemainingBalance <= 0 ? paymentDate : null;
 
-    await conn.query(
-      `UPDATE loans SET manual_final_interest = ?, total_due = ?, total_paid = ?, remaining_balance = ?, status = ?, closed_date = COALESCE(?, closed_date) WHERE id = ?`,
-      [newManualInterest, totalDue, newTotalPaid, newRemainingBalance, newLoanStatus, closedDate, loanId]
-    );
+    if (newRemainingBalance <= 0) {
+      await conn.query(
+        `UPDATE loans SET
+          manual_final_interest = ?, total_due = ?, total_paid = ?, remaining_balance = ?, status = ?,
+          closed_by = ?, closed_by_name = ?, closed_date = COALESCE(?, closed_date), updated_by = ?, updated_by_name = ?
+        WHERE id = ?`,
+        [newManualInterest, totalDue, newTotalPaid, newRemainingBalance, newLoanStatus, staff.staffId, staff.staffNameSnapshot, closedDate, staff.staffId, staff.staffNameSnapshot, loanId]
+      );
+    } else {
+      await conn.query(
+        `UPDATE loans SET
+          manual_final_interest = ?, total_due = ?, total_paid = ?, remaining_balance = ?, status = ?,
+          updated_by = ?, updated_by_name = ?
+        WHERE id = ?`,
+        [newManualInterest, totalDue, newTotalPaid, newRemainingBalance, newLoanStatus, staff.staffId, staff.staffNameSnapshot, loanId]
+      );
+    }
 
-    // AUTOMATIC FULL GOLD RELEASE IF LOAN IS FULLY SETTLED (newRemainingBalance <= 0)
+    // AUTOMATIC FULL GOLD RELEASE IF LOAN IS FULLY SETTLED
     let autoReleaseRecord = null;
     if (newRemainingBalance <= 0) {
       const [existingRel] = await conn.query('SELECT id FROM partial_releases WHERE loan_id = ? AND release_type = "FULL" LIMIT 1', [loanId]);
@@ -170,9 +190,14 @@ router.post(['/create', '/payments/create'], requirePermission('payment.create')
           const autoReleaseNo = 'REL-' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Math.random().toString(36).substring(2,7).toUpperCase();
 
           const [relRes] = await conn.query(
-            `INSERT INTO partial_releases (release_no, loan_id, customer_id, payment_id, release_type, total_weight_released, release_date, release_time, remarks, created_by)
-             VALUES (?, ?, ?, ?, 'FULL', ?, ?, ?, 'Automatic full release upon complete loan settlement', 'STAFF')`,
-            [autoReleaseNo, loanId, customerId, paymentId, totalWeightReleased, paymentDate, paymentTime]
+            `INSERT INTO partial_releases (
+              release_no, loan_id, customer_id, payment_id, release_type, total_weight_released, release_date, release_time, remarks,
+              created_by_id, released_by, processed_by, released_by_name, created_by, created_at
+            ) VALUES (?, ?, ?, ?, 'FULL', ?, ?, ?, 'Automatic full release upon complete loan settlement', ?, ?, ?, ?, ?, NOW())`,
+            [
+              autoReleaseNo, loanId, customerId, paymentId, totalWeightReleased, paymentDate, paymentTime,
+              staff.staffId, staff.staffId, staff.staffId, staff.staffNameSnapshot, staff.staffNameSnapshot
+            ]
           );
 
           const releaseId = relRes.insertId;
@@ -185,66 +210,46 @@ router.post(['/create', '/payments/create'], requirePermission('payment.create')
             );
 
             await conn.query("UPDATE loan_gold_items SET status = 'RELEASED', released_weight = pledged_weight, release_date = ? WHERE id = ?", [paymentDate, pItem.id]);
-            await conn.query("UPDATE gold_items SET status = 'RELEASED' WHERE id = ?", [pItem.gold_item_id]);
+            await conn.query("UPDATE gold_items SET status = 'RELEASED', updated_by = ?, updated_by_name = ? WHERE id = ?", [staff.staffId, staff.staffNameSnapshot, pItem.gold_item_id]);
           }
 
           const txCode = 'TXN-REL-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
           await conn.query(
-            `INSERT INTO loan_transactions (transaction_code, customer_id, loan_id, transaction_type, amount, weight, reference_id, date, time, created_by, remarks)
-             VALUES (?, ?, ?, 'FULL_RELEASE', 0.00, ?, ?, ?, ?, 'STAFF', 'Full release of gold collateral upon loan closure')`,
-            [txCode, customerId, loanId, totalWeightReleased, autoReleaseNo, paymentDate, paymentTime]
+            `INSERT INTO loan_transactions (
+              transaction_code, customer_id, loan_id, transaction_type, amount, weight, reference_id, date, time,
+              user_id, staff_id, staff_name, staff_role, created_by, remarks
+            ) VALUES (?, ?, ?, 'FULL_RELEASE', 0.00, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Full release of gold collateral upon loan closure')`,
+            [txCode, customerId, loanId, totalWeightReleased, autoReleaseNo, paymentDate, paymentTime, staff.userId, staff.staffId, staff.staffNameSnapshot, staff.userRole, staff.staffNameSnapshot]
           );
 
-          const autoReleaseReceiptData = {
-            shop_name: 'GOLD & SILVER PAWN MANAGEMENT ERP',
-            receipt_no: autoReleaseNo,
-            receipt_type: 'FULL_RELEASE',
-            loan_no: loan.loan_no,
-            loan_type: loan.loan_type,
-            release_no: autoReleaseNo,
-            release_type: 'FULL',
-            date: paymentDate,
-            time: paymentTime,
-            customer: {
-              id: customer.id,
-              customer_code: customer.customer_code,
-              name: customer.name,
-              mobile: customer.mobile,
-              address: customer.address
-            },
-            financial: {
-              principal_amount: principal,
-              total_paid: newTotalPaid,
-              remaining_balance: 0.00,
-              payment_reference: receiptNo
-            },
-            released_items: pledgedItems,
-            total_released_weight: totalWeightReleased
-          };
-
-          await conn.query(
-            `INSERT INTO receipts (receipt_no, receipt_type, reference_id, customer_id, loan_id, receipt_data_json)
-             VALUES (?, 'FULL_RELEASE', ?, ?, ?, ?)`,
-            [autoReleaseNo, String(releaseId), customerId, loanId, JSON.stringify(autoReleaseReceiptData)]
-          );
-
-          autoReleaseRecord = {
-            id: releaseId,
-            release_no: autoReleaseNo,
-            total_weight_released: totalWeightReleased
-          };
+          await logActivity(conn, {
+            req,
+            moduleName: 'Releases',
+            actionType: 'GOLD_RELEASED',
+            description: `Automatic full release of ${totalWeightReleased}g gold for loan ${loan.loan_no}`,
+            customerId,
+            loanId,
+            paymentId,
+            receiptId: null,
+            goldWeight: totalWeightReleased,
+            amount: 0.00
+          });
         }
       }
     }
 
-    // Central Transaction
+    // Central Transaction Entry
     const code = 'TXN-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
     const txRemarks = `Principal Payment: Rs ${principalPayment.toFixed(2)}, Manual Interest: Rs ${manualInterest.toFixed(2)}, Total Received: Rs ${totalAmountReceived.toFixed(2)}`;
 
+    const txType = paymentType === 'FINAL_SETTLEMENT' ? 'FINAL_SETTLEMENT' : (principalPayment > 0 && manualInterest > 0 ? 'PARTIAL_PAYMENT' : (manualInterest > 0 ? 'INTEREST_CALCULATION' : 'PAYMENT'));
+
     await conn.query(
-      `INSERT INTO loan_transactions (transaction_code, customer_id, loan_id, transaction_type, amount, weight, reference_id, date, time, created_by, remarks)
-       VALUES (?, ?, ?, ?, ?, 0.000, ?, ?, ?, 'STAFF', ?)`,
-      [code, customerId, loanId, paymentType === 'FINAL_SETTLEMENT' ? 'FULL_PAYMENT' : 'PAYMENT', totalAmountReceived, receiptNo, paymentDate, paymentTime, txRemarks]
+      `INSERT INTO loan_transactions (
+        transaction_code, customer_id, loan_id, transaction_type, amount, weight, reference_id, date, time,
+        user_id, staff_id, staff_name, staff_role, created_by, remarks
+      ) VALUES (?, ?, ?, ?, ?, 0.000, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [code, customerId, loanId, txType, totalAmountReceived, receiptNo, paymentDate, paymentTime, staff.userId, staff.staffId, staff.staffNameSnapshot, staff.userRole, staff.staffNameSnapshot, txRemarks]
     );
 
     // Rich Receipt Payload
@@ -272,6 +277,11 @@ router.post(['/create', '/payments/create'], requirePermission('payment.create')
       opened_date: loan.opened_date,
       date: paymentDate,
       time: paymentTime,
+      staff: {
+        staff_id: staff.staffId,
+        staff_name: staff.staffNameSnapshot,
+        role: staff.userRole
+      },
       customer: {
         id: customer.id,
         customer_code: customer.customer_code,
@@ -294,6 +304,7 @@ router.post(['/create', '/payments/create'], requirePermission('payment.create')
         remaining_balance: newRemainingBalance,
         payment_date: paymentDate,
         payment_time: paymentTime,
+        collected_by_name: staff.staffNameSnapshot,
         remarks
       },
       financial: fin,
@@ -309,11 +320,27 @@ router.post(['/create', '/payments/create'], requirePermission('payment.create')
       collateral: collateralRows
     };
 
-    await conn.query(
+    const [rcpRes] = await conn.query(
       `INSERT INTO receipts (receipt_no, receipt_type, reference_id, customer_id, loan_id, receipt_data_json)
        VALUES (?, 'PAYMENT', ?, ?, ?, ?)`,
       [receiptNo, String(paymentId), customerId, loanId, JSON.stringify(receiptData)]
     );
+
+    // Record Central Ledger Activity Log with Staff Attribution
+    await logActivity(conn, {
+      req,
+      transactionId: code,
+      moduleName: 'Payments',
+      actionType: paymentType === 'FINAL_SETTLEMENT' ? 'FINAL_SETTLEMENT' : 'PAYMENT_COLLECTED',
+      description: `Payment collected: Rs ${totalAmountReceived.toFixed(2)} (${paymentMode}) for loan ${loan.loan_no}`,
+      customerId,
+      loanId,
+      paymentId,
+      receiptId: rcpRes.insertId,
+      amount: totalAmountReceived,
+      paymentMode,
+      newValues: paymentPayloadData(paymentId, loan, customer, principalPayment, manualInterest, totalAmountReceived, newRemainingBalance, paymentMode, paymentDate, staff)
+    });
 
     await conn.commit();
     conn.release();
@@ -353,7 +380,8 @@ router.post(['/create', '/payments/create'], requirePermission('payment.create')
       paymentMode: paymentMode,
       payment_date: paymentDate,
       paymentDate: paymentDate,
-      date: paymentDate
+      date: paymentDate,
+      collected_by_name: staff.staffNameSnapshot
     };
 
     return res.status(201).json({
@@ -369,5 +397,20 @@ router.post(['/create', '/payments/create'], requirePermission('payment.create')
     return res.status(500).json({ success: false, message: 'Failed to record payment.', error: err.message });
   }
 });
+
+function paymentPayloadData(paymentId, loan, customer, principalPayment, manualInterest, totalAmountReceived, remainingBalance, paymentMode, paymentDate, staff) {
+  return {
+    payment_id: paymentId,
+    loan_no: loan.loan_no,
+    customer_name: customer.name,
+    principal_payment: principalPayment,
+    manual_interest: manualInterest,
+    total_received: totalAmountReceived,
+    remaining_balance: remainingBalance,
+    payment_mode: paymentMode,
+    payment_date: paymentDate,
+    collected_by: staff.staffNameSnapshot
+  };
+}
 
 module.exports = router;

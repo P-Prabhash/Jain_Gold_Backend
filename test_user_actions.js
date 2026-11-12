@@ -7,11 +7,11 @@ async function testUserActions() {
   console.log('Testing User Management Actions...');
 
   // 1. Get User Details
-  const getRes = await fetch('http://localhost/gold_pawn_erp/backend/users/get.php?user_id=3', { headers }).then(r => r.json());
+  const getRes = await fetch('http://localhost:5000/users/get?user_id=3', { headers }).then(r => r.json());
   console.log('1. GET User Details (ID 3 - Rajesh Sharma):', getRes.success ? '✓ SUCCESS' : '✗ FAILED');
 
   // 2. Edit User
-  const updateRes = await fetch('http://localhost/gold_pawn_erp/backend/users/update.php', {
+  const updateRes = await fetch('http://localhost:5000/users/update', {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -24,7 +24,7 @@ async function testUserActions() {
   console.log('2. EDIT User:', updateRes.message);
 
   // 3. Reset Password
-  const resetRes = await fetch('http://localhost/gold_pawn_erp/backend/users/reset_password.php', {
+  const resetRes = await fetch('http://localhost:5000/users/reset_password', {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -35,7 +35,7 @@ async function testUserActions() {
   console.log('3. RESET Password:', resetRes.message);
 
   // 4. Manage Permissions
-  const permRes = await fetch('http://localhost/gold_pawn_erp/backend/users/update_permissions.php', {
+  const permRes = await fetch('http://localhost:5000/users/update_permissions', {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -46,7 +46,7 @@ async function testUserActions() {
   console.log('4. UPDATE Permissions:', permRes.message);
 
   // 5. Toggle Status
-  const statusRes = await fetch('http://localhost/gold_pawn_erp/backend/users/toggle_status.php', {
+  const statusRes = await fetch('http://localhost:5000/users/toggle_status', {
     method: 'POST',
     headers,
     body: JSON.stringify({

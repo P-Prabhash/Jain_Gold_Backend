@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getPool } = require('../config/database');
 const { requirePermission } = require('../middleware/authMiddleware');
+const { logActivity, getStaffInfo } = require('../utils/loggerHelper');
 
 // ============================================================
 // GET /releases/list
@@ -73,6 +74,8 @@ router.post(['/create_partial', '/releases/create_partial'], requirePermission('
   try {
     await conn.beginTransaction();
 
+    const staff = getStaffInfo(req);
+
     const [loanRows] = await conn.query('SELECT * FROM loans WHERE id = ? FOR UPDATE', [loanId]);
     if (loanRows.length === 0) {
       await conn.rollback();
@@ -98,7 +101,7 @@ router.post(['/create_partial', '/releases/create_partial'], requirePermission('
           const w = parseFloat(goldObj.weight || 0);
           totalReleasedWeight += w;
 
-          await conn.query("UPDATE gold_items SET status = 'RELEASED' WHERE id = ?", [goldItemId]);
+          await conn.query("UPDATE gold_items SET status = 'RELEASED', updated_by = ?, updated_by_name = ? WHERE id = ?", [staff.staffId, staff.staffNameSnapshot, goldItemId]);
           await conn.query("UPDATE loan_gold_items SET status = 'RELEASED', released_weight = pledged_weight, release_date = ? WHERE loan_id = ? AND gold_item_id = ?", [releaseDate, loanId, goldItemId]);
 
           releasedDetails.push(goldObj);
@@ -115,23 +118,33 @@ router.post(['/create_partial', '/releases/create_partial'], requirePermission('
 
       const receiptNo = 'RCP-REL-' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Math.random().toString(36).substring(2,7).toUpperCase();
       const [pmtRes] = await conn.query(
-        `INSERT INTO payments (receipt_no, loan_id, customer_id, payment_type, amount, payment_date, payment_time, payment_mode, previous_paid, new_total_paid, remaining_balance, remarks, created_by)
-         VALUES (?, ?, ?, 'RELEASE_PAYMENT', ?, ?, ?, ?, ?, ?, ?, ?, 'STAFF')`,
-        [receiptNo, loanId, customerId, paymentAmount, releaseDate, releaseTime, paymentMode, currentPaid, newPaid, newRemaining, remarks || 'Payment during partial release']
+        `INSERT INTO payments (
+          receipt_no, loan_id, customer_id, payment_type, amount, payment_date, payment_time, payment_mode, previous_paid, new_total_paid, remaining_balance, remarks,
+          created_by_id, collected_by, collected_by_name, created_by, created_at
+        ) VALUES (?, ?, ?, 'RELEASE_PAYMENT', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+        [
+          receiptNo, loanId, customerId, paymentAmount, releaseDate, releaseTime, paymentMode, currentPaid, newPaid, newRemaining, remarks || 'Payment during partial release',
+          staff.staffId, staff.staffId, staff.staffNameSnapshot, staff.staffNameSnapshot
+        ]
       );
 
       paymentId = pmtRes.insertId;
 
       await conn.query(
-        `UPDATE loans SET total_paid = ?, remaining_balance = ? WHERE id = ?`,
-        [newPaid, newRemaining, loanId]
+        `UPDATE loans SET total_paid = ?, remaining_balance = ?, updated_by = ?, updated_by_name = ? WHERE id = ?`,
+        [newPaid, newRemaining, staff.staffId, staff.staffNameSnapshot, loanId]
       );
     }
 
     const [relRes] = await conn.query(
-      `INSERT INTO partial_releases (release_no, loan_id, customer_id, payment_id, release_type, total_weight_released, release_date, release_time, remarks, created_by)
-       VALUES (?, ?, ?, ?, 'PARTIAL', ?, ?, ?, ?, 'STAFF')`,
-      [releaseNo, loanId, customerId, paymentId, totalReleasedWeight, releaseDate, releaseTime, remarks || null]
+      `INSERT INTO partial_releases (
+        release_no, loan_id, customer_id, payment_id, release_type, total_weight_released, release_date, release_time, remarks,
+        created_by_id, released_by, processed_by, released_by_name, created_by, created_at
+      ) VALUES (?, ?, ?, ?, 'PARTIAL', ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [
+        releaseNo, loanId, customerId, paymentId, totalReleasedWeight, releaseDate, releaseTime, remarks || null,
+        staff.staffId, staff.staffId, staff.staffId, staff.staffNameSnapshot, staff.staffNameSnapshot
+      ]
     );
 
     const releaseId = relRes.insertId;
@@ -146,10 +159,30 @@ router.post(['/create_partial', '/releases/create_partial'], requirePermission('
 
     const code = 'TXN-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
     await conn.query(
-      `INSERT INTO loan_transactions (transaction_code, customer_id, loan_id, transaction_type, amount, weight, reference_id, date, time, created_by, remarks)
-       VALUES (?, ?, ?, 'PARTIAL_RELEASE', ?, ?, ?, ?, ?, 'STAFF', ?)`,
-      [code, customerId, loanId, paymentAmount, totalReleasedWeight, releaseNo, releaseDate, releaseTime, remarks || 'Partial gold release']
+      `INSERT INTO loan_transactions (
+        transaction_code, customer_id, loan_id, transaction_type, amount, weight, reference_id, date, time,
+        user_id, staff_id, staff_name, staff_role, created_by, remarks
+      ) VALUES (?, ?, ?, 'PARTIAL_RELEASE', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        code, customerId, loanId, paymentAmount, totalReleasedWeight, releaseNo, releaseDate, releaseTime,
+        staff.userId, staff.staffId, staff.staffNameSnapshot, staff.userRole, staff.staffNameSnapshot, remarks || 'Partial gold release'
+      ]
     );
+
+    // Record Activity Log with Staff Attribution
+    await logActivity(conn, {
+      req,
+      transactionId: code,
+      moduleName: 'Releases',
+      actionType: 'GOLD_RELEASED',
+      description: `Partial release of ${totalReleasedWeight}g gold for loan ${loan.loan_no}`,
+      customerId,
+      loanId,
+      paymentId,
+      goldWeight: totalReleasedWeight,
+      amount: paymentAmount,
+      paymentMode
+    });
 
     await conn.commit();
     conn.release();

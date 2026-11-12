@@ -3,18 +3,38 @@ const router = express.Router();
 const { getPool } = require('../config/database');
 const { requirePermission } = require('../middleware/authMiddleware');
 const { formatPhotoUrl } = require('../utils/imageHelper');
+const { logActivity, getStaffInfo } = require('../utils/loggerHelper');
 
-async function logTransaction(db, customerId, loanId, txType, amount, weight, refId, remarks, createdBy = 'STAFF') {
+function toSqlDate(dateVal) {
+  if (!dateVal) return null;
+  const s = String(dateVal).trim();
+  if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) return s.split('T')[0];
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+  return null;
+}
+
+async function logTransaction(db, customerId, loanId, txType, amount, weight, refId, remarks, staff = null) {
   const code = 'TXN-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
   const now = new Date();
   const dateStr = now.toISOString().split('T')[0];
   const timeStr = now.toTimeString().split(' ')[0];
 
+  const userId = staff ? staff.userId : null;
+  const staffId = staff ? staff.staffId : null;
+  const staffName = staff ? staff.staffNameSnapshot : 'System';
+  const staffRole = staff ? staff.userRole : 'STAFF';
+
   await db.query(
-    `INSERT INTO loan_transactions (transaction_code, customer_id, loan_id, transaction_type, amount, weight, reference_id, date, time, created_by, remarks)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [code, customerId, loanId, txType, amount, weight, refId || null, dateStr, timeStr, createdBy, remarks || null]
+    `INSERT INTO loan_transactions (
+      transaction_code, customer_id, loan_id, transaction_type, amount, weight, reference_id, date, time,
+      user_id, staff_id, staff_name, staff_role, created_by, remarks
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [code, customerId, loanId, txType, amount, weight, refId || null, dateStr, timeStr, userId, staffId, staffName, staffRole, staffName, remarks || null]
   );
+  return code;
 }
 
 // ============================================================
@@ -34,33 +54,28 @@ router.get(['/list', '/loans/list'], requirePermission('loan.view'), async (req,
              c.mobile,
              c.photo_url AS customer_photo,
              (SELECT COUNT(*) FROM loan_gold_items WHERE loan_id = l.id) AS collateral_count,
-             (SELECT COUNT(*) FROM loan_gold_items WHERE loan_id = l.id) AS total_items_count,
              (SELECT COALESCE(SUM(pledged_weight), 0) FROM loan_gold_items WHERE loan_id = l.id) AS pledged_weight,
-             (SELECT COALESCE(SUM(pledged_weight), 0) FROM loan_gold_items WHERE loan_id = l.id) AS total_pledged_weight,
-             (SELECT COALESCE(SUM(released_weight), 0) FROM loan_gold_items WHERE loan_id = l.id) AS released_weight,
-             (SELECT COALESCE(SUM(released_weight), 0) FROM loan_gold_items WHERE loan_id = l.id) AS total_released_weight,
-             (SELECT COALESCE(SUM(pledged_weight - released_weight), 0) FROM loan_gold_items WHERE loan_id = l.id) AS remaining_pledged_weight
+             (SELECT COALESCE(SUM(released_weight), 0) FROM loan_gold_items WHERE loan_id = l.id) AS released_weight
       FROM loans l
       JOIN customers c ON l.customer_id = c.id
       WHERE 1=1
     `;
-
     const params = [];
-
-    if (status) {
-      sql += ` AND UPPER(l.status) = ?`;
-      params.push(status);
-    }
 
     if (customerId > 0) {
       sql += ` AND l.customer_id = ?`;
       params.push(customerId);
     }
 
+    if (status) {
+      sql += ` AND UPPER(l.status) = ?`;
+      params.push(status);
+    }
+
     if (search) {
-      sql += ` AND (l.loan_no LIKE ? OR l.manual_loan_no LIKE ? OR c.name LIKE ? OR c.mobile LIKE ?)`;
+      sql += ` AND (l.loan_no LIKE ? OR l.manual_loan_no LIKE ? OR c.name LIKE ? OR c.customer_code LIKE ? OR c.mobile LIKE ?)`;
       const term = `%${search}%`;
-      params.push(term, term, term, term);
+      params.push(term, term, term, term, term);
     }
 
     sql += ` ORDER BY l.id DESC`;
@@ -69,15 +84,7 @@ router.get(['/list', '/loans/list'], requirePermission('loan.view'), async (req,
 
     for (const l of loans) {
       l.customer_photo = formatPhotoUrl(req, l.customer_photo);
-      const principal = parseFloat(l.principal_amount || 0);
-      const totalInterest = parseFloat(l.total_interest || 0) + parseFloat(l.manual_final_interest || 0);
-      const totalDue = parseFloat(l.total_due || (principal + totalInterest));
-      const totalPaid = parseFloat(l.total_paid || 0);
-      const remBal = Math.max(0, Math.round((totalDue - totalPaid) * 100) / 100);
-      const paidPrincipal = Math.min(totalPaid, principal);
-      l.remaining_principal = Math.max(0, Math.round((principal - paidPrincipal) * 100) / 100);
-      l.remaining_interest = Math.max(0, Math.round((remBal - l.remaining_principal) * 100) / 100);
-      l.remaining_balance = remBal;
+      l.display_loan_no = l.manual_loan_no || l.loan_no;
     }
 
     return res.json({
@@ -104,7 +111,11 @@ router.get(['/get', '/loans/get'], requirePermission('loan.view'), async (req, r
 
     const [loanRows] = await db.query(`
       SELECT l.*,
-             c.id AS customer_id, c.name AS customer_name, c.customer_code, c.mobile, c.address, c.aadhaar_number, c.photo_url AS customer_photo_url
+             c.name AS customer_name,
+             c.customer_code,
+             c.mobile,
+             c.address,
+             c.photo_url AS customer_photo
       FROM loans l
       JOIN customers c ON l.customer_id = c.id
       WHERE l.id = ?
@@ -115,88 +126,42 @@ router.get(['/get', '/loans/get'], requirePermission('loan.view'), async (req, r
     }
 
     const loan = loanRows[0];
-    const principal = parseFloat(loan.principal_amount || 0);
-    const totalInterest = parseFloat(loan.total_interest || 0) + parseFloat(loan.manual_final_interest || 0);
-    const totalDue = parseFloat(loan.total_due || (principal + totalInterest));
-    const totalPaid = parseFloat(loan.total_paid || 0);
-    const remBal = Math.max(0, Math.round((totalDue - totalPaid) * 100) / 100);
-    const paidPrincipal = Math.min(totalPaid, principal);
-    loan.remaining_principal = Math.max(0, Math.round((principal - paidPrincipal) * 100) / 100);
-    loan.remaining_interest = Math.max(0, Math.round((remBal - loan.remaining_principal) * 100) / 100);
-    loan.remaining_balance = remBal;
-
-    const customer = {
-      id: loan.customer_id,
-      customer_code: loan.customer_code,
-      name: loan.customer_name,
-      mobile: loan.mobile,
-      address: loan.address,
-      aadhaar_number: loan.aadhaar_number,
-      photo_url: formatPhotoUrl(req, loan.customer_photo_url)
-    };
+    loan.customer_photo = formatPhotoUrl(req, loan.customer_photo);
+    loan.display_loan_no = loan.manual_loan_no || loan.loan_no;
 
     const [collateral] = await db.query(`
-      SELECT lgi.*,
-             lgi.id AS loan_gold_item_id,
-             lgi.status AS collateral_status,
-             g.item_name, g.purity, g.weight, g.weight AS total_weight, g.weight AS original_item_weight, g.photo_url, g.photo_url AS gold_photo_url, g.remarks AS item_remarks
+      SELECT lgi.*, g.item_name, g.purity, g.weight, g.photo_url, g.locker_no
       FROM loan_gold_items lgi
       JOIN gold_items g ON lgi.gold_item_id = g.id
       WHERE lgi.loan_id = ?
       ORDER BY lgi.id ASC
     `, [id]);
 
-    let totalPledgedWeight = 0;
-    let totalReleasedWeight = 0;
     for (const c of collateral) {
       c.photo_url = formatPhotoUrl(req, c.photo_url);
-      c.gold_photo_url = formatPhotoUrl(req, c.photo_url || c.gold_photo_url);
-      totalPledgedWeight += parseFloat(c.pledged_weight || c.weight || 0);
-      totalReleasedWeight += parseFloat(c.released_weight || 0);
     }
-    const remainingPledgedWeight = Math.max(0, totalPledgedWeight - totalReleasedWeight);
-
-    const weights = {
-      total_pledged_weight: totalPledgedWeight,
-      released_pledged_weight: totalReleasedWeight,
-      remaining_pledged_weight: remainingPledgedWeight
-    };
 
     const [payments] = await db.query('SELECT * FROM payments WHERE loan_id = ? ORDER BY id DESC', [id]);
     const [releases] = await db.query('SELECT * FROM partial_releases WHERE loan_id = ? ORDER BY id DESC', [id]);
     const [transactions] = await db.query('SELECT * FROM loan_transactions WHERE loan_id = ? ORDER BY id DESC', [id]);
 
-    const responseData = {
-      loan,
-      customer,
-      collateral,
-      weights,
-      payments,
-      releases,
-      transactions
-    };
-
     return res.json({
       success: true,
-      data: responseData,
-      ...responseData
+      data: {
+        loan,
+        collateral,
+        payments,
+        releases,
+        transactions
+      }
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: 'Failed to fetch loan details.', error: err.message });
   }
 });
 
-function toSqlDate(val) {
-  if (!val) return null;
-  const str = String(val).trim();
-  if (!str || str === 'null' || str === 'undefined' || str === '0000-00-00') return null;
-  if (str.includes('T')) return str.split('T')[0];
-  if (str.includes(' ')) return str.split(' ')[0];
-  return str;
-}
-
 // ============================================================
-// SHARED LOAN CREATOR (NEW & EXISTING HISTORICAL LOANS)
+// HELPER: CREATE LOAN (NEW & EXISTING)
 // ============================================================
 async function handleCreateLoan(req, res, defaultLoanType = 'NEW_LOAN') {
   const customerId = parseInt(req.body.customer_id || req.body.customerId || req.body.customer || '0', 10);
@@ -256,6 +221,8 @@ async function handleCreateLoan(req, res, defaultLoanType = 'NEW_LOAN') {
     conn = await db.getConnection();
     await conn.beginTransaction();
 
+    const staff = getStaffInfo(req);
+
     const [custRows] = await conn.query('SELECT * FROM customers WHERE id = ?', [customerId]);
     if (custRows.length === 0) {
       await conn.rollback();
@@ -287,8 +254,9 @@ async function handleCreateLoan(req, res, defaultLoanType = 'NEW_LOAN') {
       `INSERT INTO loans (
         loan_no, manual_loan_no, customer_id, loan_type, opened_date, manual_opened_date,
         closed_date, manual_closed_date, principal_amount, monthly_interest_rate,
-        total_interest, total_due, total_paid, remaining_balance, status, remarks
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        total_interest, total_due, total_paid, remaining_balance, status, remarks,
+        created_by, created_by_name, updated_by, updated_by_name, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
         loanNo,
         manualLoanNo || null,
@@ -305,7 +273,11 @@ async function handleCreateLoan(req, res, defaultLoanType = 'NEW_LOAN') {
         totalPaid,
         remainingBalance,
         status,
-        remarks || null
+        remarks || null,
+        staff.staffId,
+        staff.staffNameSnapshot,
+        staff.staffId,
+        staff.staffNameSnapshot
       ]
     );
 
@@ -332,9 +304,11 @@ async function handleCreateLoan(req, res, defaultLoanType = 'NEW_LOAN') {
             pledgedWeight = weightVal;
           } else if (itemName) {
             const [gRes] = await conn.query(
-              `INSERT INTO gold_items (customer_id, item_name, purity, weight, remarks, status)
-               VALUES (?, ?, ?, ?, ?, 'PLEDGED')`,
-              [customerId, itemName, purity, weightVal, itemRemarks]
+              `INSERT INTO gold_items (
+                customer_id, item_name, purity, weight, remarks, status,
+                created_by, created_by_name, updated_by, updated_by_name, created_at
+              ) VALUES (?, ?, ?, ?, ?, 'PLEDGED', ?, ?, ?, ?, NOW())`,
+              [customerId, itemName, purity, weightVal, itemRemarks, staff.staffId, staff.staffNameSnapshot, staff.staffId, staff.staffNameSnapshot]
             );
             goldItemId = gRes.insertId;
             pledgedWeight = weightVal;
@@ -349,7 +323,7 @@ async function handleCreateLoan(req, res, defaultLoanType = 'NEW_LOAN') {
             const goldObj = gi[0];
             if (pledgedWeight <= 0) pledgedWeight = parseFloat(goldObj.weight || 0);
 
-            await conn.query("UPDATE gold_items SET status = 'PLEDGED' WHERE id = ?", [goldItemId]);
+            await conn.query("UPDATE gold_items SET status = 'PLEDGED', updated_by = ?, updated_by_name = ? WHERE id = ?", [staff.staffId, staff.staffNameSnapshot, goldItemId]);
             await conn.query(
               `INSERT INTO loan_gold_items (loan_id, gold_item_id, pledged_weight, status, pledge_date)
                VALUES (?, ?, ?, 'PLEDGED', ?)`,
@@ -363,7 +337,7 @@ async function handleCreateLoan(req, res, defaultLoanType = 'NEW_LOAN') {
       }
     }
 
-    await logTransaction(conn, customerId, loanId, 'LOAN_CREATED', principalAmount, totalPledgedWeight, loanNo, `Pawn Loan ${loanNo} created for Rs ${principalAmount}`, 'STAFF');
+    const txCode = await logTransaction(conn, customerId, loanId, 'LOAN_CREATED', principalAmount, totalPledgedWeight, loanNo, `Pawn Loan ${loanNo} created for Rs ${principalAmount}`, staff);
 
     const receiptNo = 'RCP-NEW-' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Math.random().toString(36).substring(2,8).toUpperCase();
     const receiptData = {
@@ -374,6 +348,11 @@ async function handleCreateLoan(req, res, defaultLoanType = 'NEW_LOAN') {
       loan_type: loanType,
       date: openedDate,
       time: new Date().toTimeString().split(' ')[0],
+      staff: {
+        staff_id: staff.staffId,
+        staff_name: staff.staffNameSnapshot,
+        role: staff.userRole
+      },
       customer: {
         id: customerId,
         customer_code: customer.customer_code,
@@ -392,11 +371,26 @@ async function handleCreateLoan(req, res, defaultLoanType = 'NEW_LOAN') {
       collateral: pledgedItemsDetails
     };
 
-    await conn.query(
+    const [rcpRes] = await conn.query(
       `INSERT INTO receipts (receipt_no, receipt_type, reference_id, customer_id, loan_id, receipt_data_json)
        VALUES (?, 'LOAN', ?, ?, ?, ?)`,
       [receiptNo, loanNo, customerId, loanId, JSON.stringify(receiptData)]
     );
+
+    // Record Central Ledger Activity Log with Staff Attribution
+    await logActivity(conn, {
+      req,
+      transactionId: txCode,
+      moduleName: 'Loans',
+      actionType: 'LOAN_CREATED',
+      description: `Pawn loan ${loanNo} created for Rs ${principalAmount.toFixed(2)} with ${totalPledgedWeight}g collateral`,
+      customerId,
+      loanId,
+      receiptId: rcpRes.insertId,
+      amount: principalAmount,
+      goldWeight: totalPledgedWeight,
+      newValues: receiptData
+    });
 
     await conn.commit();
     conn.release();
@@ -432,7 +426,8 @@ async function handleCreateLoan(req, res, defaultLoanType = 'NEW_LOAN') {
       opened_date: openedDate,
       openedDate: openedDate,
       receipt: receiptData,
-      receipt_no: receiptNo
+      receipt_no: receiptNo,
+      created_by_name: staff.staffNameSnapshot
     };
 
     return res.status(201).json({
@@ -490,6 +485,8 @@ router.post(['/create_additional', '/loans/create_additional'], requirePermissio
   try {
     await conn.beginTransaction();
 
+    const staff = getStaffInfo(req);
+
     // 1. Verify Customer
     const [custRows] = await conn.query("SELECT * FROM customers WHERE id = ? AND status = 'ACTIVE' LIMIT 1", [customerId]);
     if (custRows.length === 0) {
@@ -526,7 +523,7 @@ router.post(['/create_additional', '/loans/create_additional'], requirePermissio
     const newTotalDue = currentTotalDue + additionalAmount + initialInterest;
     const newRemainingBalance = currentRemainingBalance + additionalAmount + initialInterest;
 
-    // 4. Additional Gold Collateral Handling (if any passed)
+    // 4. Additional Gold Collateral Handling
     let selectedGoldItems = [];
     let totalPledgedWeight = 0;
 
@@ -557,12 +554,12 @@ router.post(['/create_additional', '/loans/create_additional'], requirePermissio
              VALUES (?, ?, ?, 0.000, 'PLEDGED', ?)`,
             [loanId, item.id, item.weight, openedDate]
           );
-          await conn.query("UPDATE gold_items SET status = 'PLEDGED' WHERE id = ? AND customer_id = ?", [item.id, customerId]);
+          await conn.query("UPDATE gold_items SET status = 'PLEDGED', updated_by = ?, updated_by_name = ? WHERE id = ? AND customer_id = ?", [staff.staffId, staff.staffNameSnapshot, item.id, customerId]);
         }
       }
     }
 
-    // 5. UPDATE EXISTING LOAN (DO NOT CREATE NEW LOAN NUMBER OR NEW LOAN ROW)
+    // 5. UPDATE EXISTING LOAN (Preserve original creator, update updated_by)
     await conn.query(
       `UPDATE loans
        SET
@@ -574,6 +571,8 @@ router.post(['/create_additional', '/loans/create_additional'], requirePermissio
           total_paid = ?,
           remaining_balance = ?,
           remarks = CASE WHEN ? <> '' THEN ? ELSE remarks END,
+          updated_by = ?,
+          updated_by_name = ?,
           updated_at = CURRENT_TIMESTAMP
        WHERE id = ? AND customer_id = ?`,
       [
@@ -586,6 +585,8 @@ router.post(['/create_additional', '/loans/create_additional'], requirePermissio
         newRemainingBalance,
         remarks,
         remarks,
+        staff.staffId,
+        staff.staffNameSnapshot,
         loanId,
         customerId
       ]
@@ -593,83 +594,47 @@ router.post(['/create_additional', '/loans/create_additional'], requirePermissio
 
     // 6. CENTRAL TRANSACTION AUDIT LEDGER
     const desc = `Additional disbursement of Rs ${additionalAmount.toFixed(2)} under loan ${loan.loan_no}. Combined principal: Rs ${newPrincipal.toFixed(2)}`;
-    await logTransaction(conn, customerId, loanId, 'ADDITIONAL_LOAN', additionalAmount, totalPledgedWeight, loan.loan_no, desc, 'STAFF');
+    const txCode = await logTransaction(conn, customerId, loanId, 'ADDITIONAL_LOAN', additionalAmount, totalPledgedWeight, loan.loan_no, desc, staff);
 
     // 7. RECORD IN LOAN STATUS HISTORY
     await conn.query(
       `INSERT INTO loan_status_history (loan_id, old_status, new_status, reason, changed_by)
-       VALUES (?, ?, ?, ?, 'STAFF')`,
-      [loanId, loan.status, loan.status, `Additional disbursement of Rs ${additionalAmount.toFixed(2)}`, 'STAFF']
+       VALUES (?, ?, ?, ?, ?)`,
+      [loanId, loan.status, loan.status, `Additional principal disbursement: +Rs ${additionalAmount.toFixed(2)}`, staff.staffNameSnapshot]
     );
 
-    // 8. RECEIPT GENERATION FOR ADDITIONAL DISBURSEMENT
-    const receiptNo = 'RCP-ADD-' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Math.random().toString(36).substring(2,8).toUpperCase();
-    const receiptData = {
-      shop_name: 'GOLD & SILVER PAWN MANAGEMENT ERP',
-      receipt_no: receiptNo,
-      receipt_type: 'ADDITIONAL_LOAN',
-      loan_no: loan.loan_no,
-      loan_type: loan.loan_type,
-      additional_type: additionalType,
-      date: new Date().toISOString().split('T')[0],
-      time: new Date().toTimeString().split(' ')[0],
-      customer: {
-        id: customer.id,
-        customer_code: customer.customer_code,
-        name: customer.name,
-        mobile: customer.mobile,
-        address: customer.address
-      },
-      financial: {
-        principal_amount: newPrincipal,
-        original_principal: currentPrincipal,
-        additional_amount: additionalAmount,
-        total_due: newTotalDue,
-        previous_paid: currentTotalPaid,
-        total_paid: currentTotalPaid,
-        remaining_balance: newRemainingBalance,
-        monthly_interest_rate: monthlyRate
-      },
-      loan: {
-        loan_id: loanId,
-        loan_no: loan.loan_no,
-        original_principal: currentPrincipal,
-        additional_amount: additionalAmount,
-        combined_principal: newPrincipal,
-        remaining_balance: newRemainingBalance,
-        status: loan.status
-      }
-    };
-
-    await conn.query(
-      `INSERT INTO receipts (receipt_no, receipt_type, reference_id, customer_id, loan_id, receipt_data_json)
-       VALUES (?, 'LOAN', ?, ?, ?, ?)`,
-      [receiptNo, loan.loan_no, customerId, loanId, JSON.stringify(receiptData)]
-    );
+    // Log Central Ledger Activity
+    await logActivity(conn, {
+      req,
+      transactionId: txCode,
+      moduleName: 'Loans',
+      actionType: 'ADDITIONAL_LOAN_CREATED',
+      description: desc,
+      customerId,
+      loanId,
+      amount: additionalAmount,
+      goldWeight: totalPledgedWeight
+    });
 
     await conn.commit();
     conn.release();
 
-    const [updatedRows] = await db.query('SELECT * FROM loans WHERE id = ?', [loanId]);
+    const [updatedLoan] = await db.query('SELECT * FROM loans WHERE id = ?', [loanId]);
 
-    return res.json({
+    return res.status(200).json({
       success: true,
-      message: `Additional disbursement of ₹${additionalAmount} added to existing loan ${loan.loan_no} successfully`,
+      message: `Additional principal of Rs ${additionalAmount.toFixed(2)} added successfully to loan ${loan.loan_no}.`,
       data: {
-        loan: updatedRows[0],
-        receipt: receiptData,
-        receipt_no: receiptNo,
-        original_principal: currentPrincipal,
+        loan: updatedLoan[0],
         additional_amount: additionalAmount,
-        combined_principal: newPrincipal,
-        remaining_balance: newRemainingBalance
+        combined_principal: newPrincipal
       }
     });
 
   } catch (err) {
     await conn.rollback();
     conn.release();
-    return res.status(500).json({ success: false, message: 'Failed to update pawn loan: ' + err.message });
+    return res.status(500).json({ success: false, message: 'Failed to add additional loan: ' + err.message });
   }
 });
 
@@ -710,6 +675,8 @@ router.post(['/close', '/loans/close'], requirePermission('loan.close'), async (
 
   try {
     await conn.beginTransaction();
+
+    const staff = getStaffInfo(req);
 
     const [loanRows] = await conn.query('SELECT * FROM loans WHERE id = ? FOR UPDATE', [loanId]);
     if (loanRows.length === 0) {
@@ -761,7 +728,7 @@ router.post(['/close', '/loans/close'], requirePermission('loan.close'), async (
     const finalSettlementAmount = Math.max(0, Math.round((totalDue - currentTotalPaid) * 100) / 100);
 
     if (appliedManualInterest > 0) {
-      await logTransaction(conn, customerId, loanId, 'FINAL_MANUAL_INTEREST', appliedManualInterest, 0, loan.loan_no, `Manual Final Interest of Rs ${appliedManualInterest.toFixed(2)} applied`, 'STAFF');
+      await logTransaction(conn, customerId, loanId, 'FINAL_MANUAL_INTEREST', appliedManualInterest, 0, loan.loan_no, `Manual Final Interest of Rs ${appliedManualInterest.toFixed(2)} applied`, staff);
       await conn.query(
         `INSERT INTO interest_records (loan_id, period_start, period_end, monthly_rate, interest_amount, is_manual, remarks)
          VALUES (?, ?, ?, 0.00, ?, 1, 'Manual Final Settlement Interest')`,
@@ -786,9 +753,6 @@ router.post(['/close', '/loans/close'], requirePermission('loan.close'), async (
     const principalPaidThisTx = Math.max(0, Math.round((newPrincipalPaidTotal - prevPrincipalPaid) * 100) / 100);
     const interestPaidThisTx = Math.max(0, Math.round((paymentAmount - principalPaidThisTx) * 100) / 100);
 
-    const remainingPrincipal = Math.max(0, Math.round((currentPrincipal - newPrincipalPaidTotal) * 100) / 100);
-    const remainingInterest = Math.max(0, Math.round((newRemainingBalance - remainingPrincipal) * 100) / 100);
-
     let paymentId = null;
     let paymentReceiptNo = null;
 
@@ -799,8 +763,8 @@ router.post(['/close', '/loans/close'], requirePermission('loan.close'), async (
       const [payRes] = await conn.query(
         `INSERT INTO payments (
           receipt_no, loan_id, customer_id, payment_type, amount, manual_interest, total_received, payment_date, payment_time, payment_mode,
-          previous_paid, new_total_paid, remaining_balance, remarks, created_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'STAFF')`,
+          previous_paid, new_total_paid, remaining_balance, remarks, created_by_id, collected_by, collected_by_name, created_by, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
         [
           paymentReceiptNo,
           loanId,
@@ -815,7 +779,8 @@ router.post(['/close', '/loans/close'], requirePermission('loan.close'), async (
           currentTotalPaid,
           newTotalPaid,
           newRemainingBalance,
-          remarks || (paymentType === 'FINAL_SETTLEMENT' ? 'Final Settlement Payment' : 'Partial Settlement Payment')
+          remarks || (paymentType === 'FINAL_SETTLEMENT' ? 'Final Settlement Payment' : 'Partial Settlement Payment'),
+          staff.staffId, staff.staffId, staff.staffNameSnapshot, staff.staffNameSnapshot
         ]
       );
 
@@ -837,7 +802,7 @@ router.post(['/close', '/loans/close'], requirePermission('loan.close'), async (
         0,
         paymentReceiptNo,
         remarks || `Settlement payment received: Rs ${paymentAmount.toFixed(2)}. Remaining: Rs ${newRemainingBalance.toFixed(2)}`,
-        'STAFF'
+        staff
       );
     }
 
@@ -845,9 +810,6 @@ router.post(['/close', '/loans/close'], requirePermission('loan.close'), async (
     const closedDate = isClosed ? txDate : null;
     const loanStatus = isClosed ? 'CLOSED' : (newTotalPaid > 0 ? 'PARTIALLY_PAID' : loan.status);
 
-    let receiptData = null;
-    let receiptId = null;
-    let receiptNo = paymentReceiptNo;
     let totalReleasedWeight = 0;
     let pledgedCollateral = [];
 
@@ -863,7 +825,7 @@ router.post(['/close', '/loans/close'], requirePermission('loan.close'), async (
 
       for (const col of pledgedCollateral) {
         await conn.query("UPDATE loan_gold_items SET status = 'RELEASED', released_weight = pledged_weight, release_date = ? WHERE id = ?", [closedDate, col.id]);
-        await conn.query("UPDATE gold_items SET status = 'RELEASED' WHERE id = ?", [col.gold_item_id]);
+        await conn.query("UPDATE gold_items SET status = 'RELEASED', updated_by = ?, updated_by_name = ? WHERE id = ?", [staff.staffId, staff.staffNameSnapshot, col.gold_item_id]);
         totalReleasedWeight += parseFloat(col.pledged_weight || col.weight || 0);
       }
 
@@ -873,9 +835,14 @@ router.post(['/close', '/loans/close'], requirePermission('loan.close'), async (
       if (!releaseId) {
         const autoReleaseNo = 'REL-' + txDate.replace(/-/g,'') + '-' + Math.random().toString(36).substring(2,7).toUpperCase();
         const [relRes] = await conn.query(
-          `INSERT INTO partial_releases (release_no, loan_id, customer_id, payment_id, release_type, total_weight_released, release_date, release_time, remarks, created_by)
-           VALUES (?, ?, ?, ?, 'FULL', ?, ?, ?, 'Automatic full release upon loan settlement closure', 'STAFF')`,
-          [autoReleaseNo, loanId, customerId, paymentId, totalReleasedWeight, closedDate, txTime]
+          `INSERT INTO partial_releases (
+            release_no, loan_id, customer_id, payment_id, release_type, total_weight_released, release_date, release_time, remarks,
+            created_by_id, released_by, processed_by, released_by_name, created_by, created_at
+          ) VALUES (?, ?, ?, ?, 'FULL', ?, ?, ?, 'Automatic full release upon loan settlement closure', ?, ?, ?, ?, ?, NOW())`,
+          [
+            autoReleaseNo, loanId, customerId, paymentId, totalReleasedWeight, closedDate, txTime,
+            staff.staffId, staff.staffId, staff.staffId, staff.staffNameSnapshot, staff.staffNameSnapshot
+          ]
         );
         releaseId = relRes.insertId;
 
@@ -887,156 +854,114 @@ router.post(['/close', '/loans/close'], requirePermission('loan.close'), async (
           );
         }
 
-        await logTransaction(conn, customerId, loanId, 'FULL_RELEASE', 0, totalReleasedWeight, loan.loan_no, `Full release of gold collateral (${totalReleasedWeight.toFixed(3)}g) upon closure`, 'STAFF');
+        await logTransaction(conn, customerId, loanId, 'FULL_RELEASE', 0, totalReleasedWeight, loan.loan_no, `Full release of gold collateral (${totalReleasedWeight.toFixed(3)}g) upon closure`, staff);
       }
 
-      await logTransaction(conn, customerId, loanId, 'LOAN_CLOSED', 0, 0, loan.loan_no, `Loan ${loan.loan_no} fully settled and closed`, 'STAFF');
+      await logTransaction(conn, customerId, loanId, 'LOAN_CLOSED', 0, 0, loan.loan_no, `Loan ${loan.loan_no} fully settled and closed`, staff);
 
       await conn.query(
         `INSERT INTO loan_status_history (loan_id, old_status, new_status, reason, changed_by)
-         VALUES (?, ?, 'CLOSED', 'Full settlement completed', 'STAFF')`,
-        [loanId, loan.status]
+         VALUES (?, ?, 'CLOSED', 'Full settlement completed', ?)`,
+        [loanId, loan.status, staff.staffNameSnapshot]
       );
-
-      const closureReceiptNo = 'RCP-CLS-' + txDate.replace(/-/g,'') + '-' + String(loan.loan_no).replace(/[^a-zA-Z0-9]/g, '');
-      receiptNo = closureReceiptNo;
-      receiptData = {
-        shop_name: 'GOLD & SILVER PAWN MANAGEMENT ERP',
-        receipt_no: closureReceiptNo,
-        receipt_type: 'CLOSURE',
-        loan_no: loan.loan_no,
-        loan_type: loan.loan_type,
-        customer: {
-          id: customer.id,
-          customer_code: customer.customer_code,
-          name: customer.name,
-          mobile: customer.mobile,
-          address: customer.address
-        },
-        financial: {
-          principal_amount: currentPrincipal,
-          previous_interest: existingTotalInterest,
-          manual_final_interest: newManualInterest,
-          final_settlement_amount: finalSettlementAmount,
-          total_paid: newTotalPaid,
-          final_payment: paymentAmount,
-          remaining_balance: 0.00,
-          remaining_principal: 0.00,
-          remaining_interest: 0.00,
-          settlement_status: 'PAID IN FULL',
-          loan_status: 'CLOSED'
-        },
-        collateral: pledgedCollateral,
-        collateral_release_status: 'RELEASED',
-        dates: {
-          opened_date: loan.opened_date,
-          closed_date: closedDate,
-          generated_date: txDate
-        }
-      };
-
-      const [rcpRes] = await conn.query(
-        `INSERT INTO receipts (receipt_no, receipt_type, reference_id, customer_id, loan_id, receipt_data_json)
-         VALUES (?, 'CLOSURE', ?, ?, ?, ?)`,
-        [closureReceiptNo, loan.loan_no, customerId, loanId, JSON.stringify(receiptData)]
-      );
-      receiptId = rcpRes.insertId;
-    } else if (paymentId > 0) {
-      const [collateralRows] = await conn.query(`
-        SELECT lgi.*, g.item_name, g.purity, g.weight
-        FROM loan_gold_items lgi
-        JOIN gold_items g ON lgi.gold_item_id = g.id
-        WHERE lgi.loan_id = ?
-      `, [loanId]);
-
-      receiptData = {
-        shop_name: 'GOLD & SILVER PAWN MANAGEMENT ERP',
-        receipt_no: paymentReceiptNo,
-        receipt_type: 'PAYMENT',
-        loan_no: loan.loan_no,
-        loan_type: loan.loan_type,
-        customer: {
-          id: customer.id,
-          customer_code: customer.customer_code,
-          name: customer.name,
-          mobile: customer.mobile,
-          address: customer.address
-        },
-        financial: {
-          principal_amount: currentPrincipal,
-          total_interest: totalInterestCombined,
-          manual_final_interest: newManualInterest,
-          final_settlement_amount: finalSettlementAmount,
-          payment_amount: paymentAmount,
-          previous_paid: currentTotalPaid,
-          total_paid: newTotalPaid,
-          remaining_principal: remainingPrincipal,
-          remaining_interest: remainingInterest,
-          remaining_balance: newRemainingBalance,
-          loan_status: loanStatus
-        },
-        collateral: collateralRows,
-        collateral_release_status: 'PLEDGED',
-        dates: {
-          opened_date: loan.opened_date,
-          payment_date: txDate
-        }
-      };
-
-      const [rcpRes] = await conn.query(
-        `INSERT INTO receipts (receipt_no, receipt_type, reference_id, customer_id, loan_id, receipt_data_json)
-         VALUES (?, 'PAYMENT', ?, ?, ?, ?)`,
-        [paymentReceiptNo, String(paymentId), customerId, loanId, JSON.stringify(receiptData)]
-      );
-      receiptId = rcpRes.insertId;
     }
 
-    await conn.query(
-      `UPDATE loans SET total_interest = ?, manual_final_interest = ?, total_due = ?, total_paid = ?, remaining_balance = ?, status = ?, closed_date = ? WHERE id = ?`,
-      [newTotalInterest, newManualInterest, totalDue, newTotalPaid, newRemainingBalance, loanStatus, closedDate, loanId]
-    );
+    // UPDATE LOAN WITH STAFF ATTRIBUTION (closed_by & closed_by_name)
+    if (isClosed) {
+      await conn.query(
+        `UPDATE loans
+         SET
+            manual_final_interest = ?,
+            total_interest = ?,
+            total_due = ?,
+            total_paid = ?,
+            remaining_balance = ?,
+            status = ?,
+            closed_date = COALESCE(?, closed_date),
+            closed_by = ?,
+            closed_by_name = ?,
+            updated_by = ?,
+            updated_by_name = ?,
+            updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [
+          newManualInterest,
+          newTotalInterest,
+          totalDue,
+          newTotalPaid,
+          newRemainingBalance,
+          loanStatus,
+          closedDate,
+          staff.staffId,
+          staff.staffNameSnapshot,
+          staff.staffId,
+          staff.staffNameSnapshot,
+          loanId
+        ]
+      );
+    } else {
+      await conn.query(
+        `UPDATE loans
+         SET
+            manual_final_interest = ?,
+            total_interest = ?,
+            total_due = ?,
+            total_paid = ?,
+            remaining_balance = ?,
+            status = ?,
+            updated_by = ?,
+            updated_by_name = ?,
+            updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [
+          newManualInterest,
+          newTotalInterest,
+          totalDue,
+          newTotalPaid,
+          newRemainingBalance,
+          loanStatus,
+          staff.staffId,
+          staff.staffNameSnapshot,
+          loanId
+        ]
+      );
+    }
+
+    // Record Central Ledger Activity Log with Staff Attribution
+    await logActivity(conn, {
+      req,
+      moduleName: 'Loans',
+      actionType: isClosed ? 'LOAN_CLOSED' : 'LOAN_UPDATED',
+      description: isClosed ? `Loan ${loan.loan_no} closed & settled` : `Loan ${loan.loan_no} settlement payment recorded`,
+      customerId,
+      loanId,
+      paymentId,
+      amount: paymentAmount,
+      goldWeight: totalReleasedWeight,
+      paymentMode
+    });
 
     await conn.commit();
     conn.release();
 
-    const [freshLoanRows] = await db.query('SELECT * FROM loans WHERE id = ?', [loanId]);
-    const freshLoan = freshLoanRows[0] || {};
-    freshLoan.remaining_principal = remainingPrincipal;
-    freshLoan.remaining_interest = remainingInterest;
+    const [updatedLoan] = await db.query('SELECT * FROM loans WHERE id = ?', [loanId]);
 
     return res.json({
       success: true,
-      message: isClosed ? 'Loan settled and closed successfully' : 'Settlement payment recorded. Loan remains active.',
+      message: isClosed ? 'Pawn loan settled and closed successfully.' : 'Loan settlement payment recorded successfully.',
       data: {
-        transaction_id: paymentId,
-        receipt_id: receiptId,
-        receipt_no: receiptNo,
-        loan_id: loanId,
-        loan_no: loan.loan_no,
-        principal_amount: currentPrincipal,
-        manual_final_interest: appliedManualInterest,
-        total_manual_interest: newManualInterest,
-        current_outstanding: currentOutstandingBefore,
-        final_settlement_amount: finalSettlementAmount,
+        loan: updatedLoan[0],
+        payment_id: paymentId,
         payment_amount: paymentAmount,
-        actual_payment_amount: paymentAmount,
-        total_paid: newTotalPaid,
-        remaining_principal: remainingPrincipal,
-        remaining_interest: remainingInterest,
-        total_remaining_balance: newRemainingBalance,
         remaining_balance: newRemainingBalance,
-        loan_status: loanStatus,
-        status: loanStatus,
-        is_closed: isClosed,
-        collateral_release_status: isClosed ? 'RELEASED' : 'PLEDGED',
-        loan: freshLoan,
-        receipt: receiptData
+        closed_by_name: staff.staffNameSnapshot
       }
     });
 
   } catch (err) {
     await conn.rollback();
     conn.release();
+    console.error('[CLOSE LOAN ERROR]', err);
     return res.status(500).json({ success: false, message: 'Failed to process loan closure: ' + err.message, error: err.message });
   }
 });
@@ -1059,10 +984,13 @@ router.get(['/search_additional_customers', '/loans/search_additional_customers'
           c.mobile,
           c.address,
           c.aadhaar_number,
-          COUNT(DISTINCT l.id) AS existing_loans_count
+          c.photo_url,
+          COUNT(DISTINCT l.id) AS existing_loans_count,
+          COALESCE(SUM(DISTINCT CASE WHEN g.status = 'AVAILABLE' THEN g.weight ELSE 0 END), 0) AS available_gold_weight
       FROM customers c
       LEFT JOIN loans l ON l.customer_id = c.id
-      WHERE c.status = 'ACTIVE'
+      LEFT JOIN gold_items g ON g.customer_id = c.id
+      WHERE (c.status IS NULL OR c.status = '' OR UPPER(c.status) != 'INACTIVE')
     `;
 
     const params = [];
@@ -1076,13 +1004,17 @@ router.get(['/search_additional_customers', '/loans/search_additional_customers'
 
     const [rows] = await db.query(sql, params);
 
+    for (const r of rows) {
+      r.photo_url = formatPhotoUrl(req, r.photo_url);
+    }
+
     return res.json({
       success: true,
       count: rows.length,
       data: rows
     });
   } catch (err) {
-    return res.status(500).json({ success: false, message: 'Failed to search loan customers.', error: err.message });
+    return res.status(500).json({ success: false, message: 'Failed to search additional loan customers.', error: err.message });
   }
 });
 

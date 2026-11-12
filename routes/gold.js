@@ -3,6 +3,7 @@ const router = express.Router();
 const { getPool } = require('../config/database');
 const { requirePermission } = require('../middleware/authMiddleware');
 const { formatPhotoUrl } = require('../utils/imageHelper');
+const { logActivity, getStaffInfo } = require('../utils/loggerHelper');
 
 // ============================================================
 // GET /gold/list
@@ -95,6 +96,7 @@ router.post(['/create', '/add', '/gold/create', '/gold/add'], requirePermission(
 
   try {
     const db = await getPool();
+    const staff = getStaffInfo(req);
 
     // Verify customer exists
     const [cust] = await db.query('SELECT id FROM customers WHERE id = ?', [customerId]);
@@ -117,13 +119,33 @@ router.post(['/create', '/add', '/gold/create', '/gold/add'], requirePermission(
     }
 
     const [insertRes] = await db.query(
-      `INSERT INTO gold_items (customer_id, item_name, purity, weight, remarks, photo_url, locker_no, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'AVAILABLE')`,
-      [customerId, itemName, purity, weight, remarks || null, photoUrl || null, lockerNo || null]
+      `INSERT INTO gold_items (
+        customer_id, item_name, purity, weight, remarks, photo_url, locker_no, status,
+        created_by, created_by_name, updated_by, updated_by_name, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'AVAILABLE', ?, ?, ?, ?, NOW())`,
+      [
+        customerId, itemName, purity, weight, remarks || null, photoUrl || null, lockerNo || null,
+        staff.staffId, staff.staffNameSnapshot, staff.staffId, staff.staffNameSnapshot
+      ]
     );
 
-    const [created] = await db.query('SELECT * FROM gold_items WHERE id = ?', [insertRes.insertId]);
+    const goldItemId = insertRes.insertId;
+    const [created] = await db.query('SELECT * FROM gold_items WHERE id = ?', [goldItemId]);
     created[0].photo_url = formatPhotoUrl(req, created[0].photo_url);
+
+    const isSilver = itemName.toLowerCase().includes('silver') || purity.toLowerCase().includes('silver');
+    const actionType = isSilver ? 'SILVER_ITEM_ADDED' : 'GOLD_ITEM_ADDED';
+
+    // Log Activity to Central Ledger with Staff Attribution
+    await logActivity(db, {
+      req,
+      moduleName: 'Gold',
+      actionType,
+      description: `Collateral item added: ${itemName} (${weight}g, ${purity})`,
+      customerId,
+      goldWeight: weight,
+      newValues: created[0]
+    });
 
     return res.status(201).json({
       success: true,
@@ -157,14 +179,40 @@ router.post(['/update', '/gold/update'], requirePermission('gold.edit'), async (
 
   try {
     const db = await getPool();
+    const staff = getStaffInfo(req);
+
+    const [existingGold] = await db.query('SELECT * FROM gold_items WHERE id = ?', [id]);
+    if (existingGold.length === 0) {
+      return res.status(404).json({ success: false, message: 'Gold item not found.' });
+    }
+    const oldValues = existingGold[0];
 
     await db.query(
-      `UPDATE gold_items SET item_name = ?, purity = COALESCE(NULLIF(?, ''), purity), weight = ?, remarks = ?, photo_url = COALESCE(NULLIF(?, ''), photo_url), locker_no = COALESCE(NULLIF(?, ''), locker_no), updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-      [itemName, purity, weight, remarks || null, photoUrl, lockerNo, id]
+      `UPDATE gold_items SET
+        item_name = ?, purity = COALESCE(NULLIF(?, ''), purity), weight = ?, remarks = ?,
+        photo_url = COALESCE(NULLIF(?, ''), photo_url), locker_no = COALESCE(NULLIF(?, ''), locker_no),
+        updated_by = ?, updated_by_name = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?`,
+      [itemName, purity, weight, remarks || null, photoUrl, lockerNo, staff.staffId, staff.staffNameSnapshot, id]
     );
 
     const [updated] = await db.query('SELECT * FROM gold_items WHERE id = ?', [id]);
     updated[0].photo_url = formatPhotoUrl(req, updated[0].photo_url);
+
+    const isSilver = itemName.toLowerCase().includes('silver') || purity.toLowerCase().includes('silver');
+    const actionType = isSilver ? 'SILVER_ITEM_UPDATED' : 'GOLD_ITEM_UPDATED';
+
+    // Log Activity to Central Ledger with Staff Attribution
+    await logActivity(db, {
+      req,
+      moduleName: 'Gold',
+      actionType,
+      description: `Collateral item updated: ${itemName} (${weight}g, ${purity})`,
+      customerId: updated[0].customer_id,
+      goldWeight: weight,
+      oldValues,
+      newValues: updated[0]
+    });
 
     return res.json({
       success: true,

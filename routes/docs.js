@@ -6,7 +6,7 @@ const openApiSpec = {
   info: {
     title: "Gold & Silver Pawn Loan Management ERP API",
     version: "1.0.0",
-    description: "Complete Node.js Express REST API for Gold & Silver Pawn Management ERP system with Two-Step Gmail OTP Authentication."
+    description: "Complete Node.js Express REST API for Gold & Silver Pawn Management ERP system with Central Ledger Staff Attribution and Two-Step Gmail OTP Authentication."
   },
   servers: [
     {
@@ -101,119 +101,75 @@ const openApiSpec = {
         }
       }
     },
-    "/api/auth/test-email": {
-      post: {
-        summary: "Independent Gmail SMTP Test Email (Development)",
-        description: "Sends an automated test email directly through Gmail SMTP without generating an OTP to verify live delivery.",
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  email: { type: "string", example: "pandetiprabhash@gmail.com" }
-                },
-                required: ["email"]
-              }
-            }
-          }
-        },
-        responses: {
-          "200": { description: "Test email successfully accepted by Gmail SMTP server." },
-          "500": { description: "Gmail SMTP delivery error." }
-        }
-      }
-    },
-    "/api/auth/me": {
+    "/api/central-ledger/transactions": {
       get: {
-        summary: "Retrieve Authenticated User Profile",
+        summary: "Central Ledger Transactions (Staff Attributed)",
+        description: "Retrieves complete financial & collateral transaction ledger with automatic staff attribution and snapshot details.",
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: "search", in: "query", schema: { type: "string" }, description: "Search by code, customer, loan, staff, or remarks" },
+          { name: "staffId", in: "query", schema: { type: "string" }, description: "Filter by specific staff ID or 'ALL'" },
+          { name: "eventType", in: "query", schema: { type: "string" }, description: "Filter by event type (e.g. LOAN_CREATED, PAYMENT_COLLECTED, GOLD_RELEASED)" },
+          { name: "fromDate", in: "query", schema: { type: "string", format: "date" }, description: "Filter from date (YYYY-MM-DD)" },
+          { name: "toDate", in: "query", schema: { type: "string", format: "date" }, description: "Filter to date (YYYY-MM-DD)" },
+          { name: "page", in: "query", schema: { type: "integer", default: 1 } },
+          { name: "limit", in: "query", schema: { type: "integer", default: 25 } }
+        ],
+        responses: {
+          "200": { description: "Paginated transactions list with staff attribution." }
+        }
+      }
+    },
+    "/api/central-ledger/staff": {
+      get: {
+        summary: "Staff List for Dropdown Filter",
+        description: "Returns list of Admin and Staff accounts available for central ledger filtering.",
         security: [{ BearerAuth: [] }],
         responses: {
-          "200": { description: "Authenticated user details and permission codes." },
-          "401": { description: "Unauthorized access token." }
+          "200": { description: "List of Admin and Staff users." }
         }
       }
     },
-    "/api/auth/refresh-token": {
-      post: {
-        summary: "Refresh Access Token",
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  refreshToken: { type: "string", example: "eyJhbGciOiJIUzI1Ni..." }
-                },
-                required: ["refreshToken"]
-              }
-            }
-          }
-        },
-        responses: {
-          "200": { description: "Fresh access token issued." },
-          "401": { description: "Invalid or expired refresh token." }
-        }
-      }
-    },
-    "/api/auth/logout": {
-      post: {
-        summary: "Logout Admin Session",
-        responses: {
-          "200": { description: "Logged out successfully." }
-        }
-      }
-    },
-    "/customers/create": {
-      post: {
-        summary: "Create Customer",
+    "/api/central-ledger/staff-summary": {
+      get: {
+        summary: "Staff-Wise Operational & Financial Summary",
+        description: "Calculates staff-wise breakdown of customer additions, gold items, loans created/closed, collections, and releases.",
         security: [{ BearerAuth: [] }],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  name: { type: "string", example: "Ramesh Kumar" },
-                  mobile: { type: "string", example: "9876543210" },
-                  address: { type: "string", example: "123 Main Market Street" }
-                },
-                required: ["name", "mobile", "address"]
-              }
-            }
-          }
-        },
+        parameters: [
+          { name: "staffId", in: "query", schema: { type: "string" } },
+          { name: "fromDate", in: "query", schema: { type: "string", format: "date" } },
+          { name: "toDate", in: "query", schema: { type: "string", format: "date" } }
+        ],
         responses: {
-          "201": { description: "Customer created successfully." }
+          "200": { description: "Calculated staff-wise summary metrics." }
         }
       }
     },
-    "/loans/close": {
-      post: {
-        summary: "Final Settlement & Loan Closure",
+    "/api/central-ledger/summary": {
+      get: {
+        summary: "Central Ledger KPI Overview",
+        description: "Calculates global or staff-filtered KPI card metrics.",
         security: [{ BearerAuth: [] }],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  loan_id: { type: "integer", example: 1 },
-                  manual_final_interest: { type: "number", example: 100 },
-                  payment_amount: { type: "number", example: 5100 },
-                  payment_mode: { type: "string", example: "CASH" }
-                },
-                required: ["loan_id"]
-              }
-            }
-          }
-        },
+        parameters: [
+          { name: "staffId", in: "query", schema: { type: "string" } },
+          { name: "fromDate", in: "query", schema: { type: "string", format: "date" } },
+          { name: "toDate", in: "query", schema: { type: "string", format: "date" } }
+        ],
         responses: {
-          "200": { description: "Settlement payment recorded successfully." }
+          "200": { description: "KPI summary metrics." }
+        }
+      }
+    },
+    "/api/central-ledger/transactions/{id}": {
+      get: {
+        summary: "Transaction & Staff Attribution Details",
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "string" } }
+        ],
+        responses: {
+          "200": { description: "Detailed transaction and staff attribution breakdown." },
+          "404": { description: "Transaction not found." }
         }
       }
     }

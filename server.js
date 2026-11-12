@@ -76,6 +76,7 @@ const backupRoutes = require('./routes/backup');
 const seedRoutes = require('./routes/seed');
 const testWorkflowRoutes = require('./routes/test_workflow');
 const docsRoutes = require('./routes/docs');
+const centralLedgerRoutes = require('./routes/centralLedger');
 
 // ============================================================
 // MOUNT ROUTERS & TOP-LEVEL ROUTE ALIASES
@@ -112,6 +113,7 @@ app.all([
 });
 
 app.use(['/api/auth', '/auth'], authRoutes);
+app.use(['/api/central-ledger', '/central-ledger', '/api/central_ledger', '/central_ledger'], centralLedgerRoutes);
 app.use('/customers', customerRoutes);
 app.use('/dashboard', dashboardRoutes);
 app.use('/gold', goldRoutes);

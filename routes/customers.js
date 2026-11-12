@@ -3,6 +3,7 @@ const router = express.Router();
 const { getPool } = require('../config/database');
 const { requirePermission } = require('../middleware/authMiddleware');
 const { formatPhotoUrl } = require('../utils/imageHelper');
+const { logActivity, getStaffInfo } = require('../utils/loggerHelper');
 
 // ============================================================
 // GET /customers/list
@@ -215,6 +216,7 @@ router.post(['/create', '/customers/create'], requirePermission('customer.create
 
   try {
     const db = await getPool();
+    const staff = getStaffInfo(req);
 
     // Check duplicate mobile
     const [existingMobile] = await db.query('SELECT id FROM customers WHERE mobile = ? LIMIT 1', [mobile]);
@@ -236,13 +238,29 @@ router.post(['/create', '/customers/create'], requirePermission('customer.create
     const customerCode = `CUST-${nextId}`;
 
     const [insertRes] = await db.query(
-      `INSERT INTO customers (customer_code, name, mobile, address, aadhaar_number, pan_number, photo_url, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')`,
-      [customerCode, name, mobile, address, aadhaar || null, pan || null, photoUrl || null]
+      `INSERT INTO customers (
+        customer_code, name, mobile, address, aadhaar_number, pan_number, photo_url, status,
+        created_by, created_by_name, updated_by, updated_by_name, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?, ?, NOW())`,
+      [
+        customerCode, name, mobile, address, aadhaar || null, pan || null, photoUrl || null,
+        staff.staffId, staff.staffNameSnapshot, staff.staffId, staff.staffNameSnapshot
+      ]
     );
 
-    const [created] = await db.query('SELECT * FROM customers WHERE id = ?', [insertRes.insertId]);
+    const customerId = insertRes.insertId;
+    const [created] = await db.query('SELECT * FROM customers WHERE id = ?', [customerId]);
     created[0].photo_url = formatPhotoUrl(req, created[0].photo_url);
+
+    // Record Central Ledger Activity Log with Staff Attribution
+    await logActivity(db, {
+      req,
+      moduleName: 'Customer',
+      actionType: 'CUSTOMER_CREATED',
+      description: `Customer registered: ${name} (${customerCode})`,
+      customerId: customerId,
+      newValues: created[0]
+    });
 
     return res.status(201).json({
       success: true,
@@ -276,20 +294,43 @@ router.post(['/update', '/customers/update'], requirePermission('customer.edit')
 
   try {
     const db = await getPool();
+    const staff = getStaffInfo(req);
+
+    const [existingCust] = await db.query('SELECT * FROM customers WHERE id = ?', [id]);
+    if (existingCust.length === 0) {
+      return res.status(404).json({ success: false, message: 'Customer not found.' });
+    }
+    const oldValues = existingCust[0];
 
     // Check duplicate mobile for other customers
-    const [existing] = await db.query('SELECT id FROM customers WHERE mobile = ? AND id != ? LIMIT 1', [mobile, id]);
-    if (existing.length > 0) {
+    const [existingMobile] = await db.query('SELECT id FROM customers WHERE mobile = ? AND id != ? LIMIT 1', [mobile, id]);
+    if (existingMobile.length > 0) {
       return res.status(409).json({ success: false, message: 'Mobile number registered to another customer.' });
     }
 
+    // Preserve original created_by, update updated_by
     await db.query(
-      `UPDATE customers SET name = ?, mobile = ?, address = ?, aadhaar_number = ?, pan_number = ?, photo_url = COALESCE(NULLIF(?, ''), photo_url), updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-      [name, mobile, address, aadhaar || null, pan || null, photoUrl, id]
+      `UPDATE customers SET
+        name = ?, mobile = ?, address = ?, aadhaar_number = ?, pan_number = ?,
+        photo_url = COALESCE(NULLIF(?, ''), photo_url),
+        updated_by = ?, updated_by_name = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?`,
+      [name, mobile, address, aadhaar || null, pan || null, photoUrl, staff.staffId, staff.staffNameSnapshot, id]
     );
 
     const [updated] = await db.query('SELECT * FROM customers WHERE id = ?', [id]);
     updated[0].photo_url = formatPhotoUrl(req, updated[0].photo_url);
+
+    // Record Central Ledger Activity Log with Staff Attribution
+    await logActivity(db, {
+      req,
+      moduleName: 'Customer',
+      actionType: 'CUSTOMER_UPDATED',
+      description: `Customer details updated: ${name} (${updated[0].customer_code})`,
+      customerId: id,
+      oldValues,
+      newValues: updated[0]
+    });
 
     return res.json({
       success: true,

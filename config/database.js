@@ -551,7 +551,42 @@ async function ensureSchema(dbPool) {
       ('security.login_logs', 'View Login Logs', 'Security', 'View login activity.'),
       ('security.audit_logs', 'View Audit Logs', 'Security', 'View audit trail.'),
       ('security.sessions', 'Manage Sessions', 'Security', 'View and revoke user sessions.')
-      ON DUPLICATE KEY UPDATE permission_name = VALUES(permission_name), module_name = VALUES(module_name)`
+      ON DUPLICATE KEY UPDATE permission_name = VALUES(permission_name), module_name = VALUES(module_name)`,
+
+      `CREATE TABLE IF NOT EXISTS activity_logs (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        transaction_id VARCHAR(100) NULL,
+        user_id INT NULL,
+        staff_id INT NULL,
+        user_name_snapshot VARCHAR(150) NULL,
+        staff_name_snapshot VARCHAR(150) NULL,
+        user_role VARCHAR(50) NULL,
+        module_name VARCHAR(100) NOT NULL,
+        action_type VARCHAR(100) NOT NULL,
+        description TEXT NULL,
+        customer_id INT NULL,
+        loan_id INT NULL,
+        payment_id INT NULL,
+        receipt_id INT NULL,
+        amount DECIMAL(12,2) DEFAULT 0.00,
+        gold_weight DECIMAL(8,3) DEFAULT 0.000,
+        payment_mode VARCHAR(50) NULL,
+        transaction_status VARCHAR(50) DEFAULT 'SUCCESS',
+        old_values JSON NULL,
+        new_values JSON NULL,
+        ip_address VARCHAR(45) NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_act_staff (staff_id),
+        INDEX idx_act_user (user_id),
+        INDEX idx_act_tx (transaction_id),
+        INDEX idx_act_cust (customer_id),
+        INDEX idx_act_loan (loan_id),
+        INDEX idx_act_action (action_type),
+        INDEX idx_act_date (created_at),
+        CONSTRAINT fk_act_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+        CONSTRAINT fk_act_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
+        CONSTRAINT fk_act_loan FOREIGN KEY (loan_id) REFERENCES loans(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
     ];
 
     for (const sql of ddlQueries) {
@@ -683,6 +718,16 @@ async function ensureUserColumns(dbPool) {
       // ignore
     }
 
+    // Ensure Customers Columns
+    try {
+      const [custCols] = await dbPool.query("SHOW COLUMNS FROM customers");
+      const existingCustCols = custCols.map(c => c.Field.toLowerCase());
+      if (!existingCustCols.includes('created_by')) await dbPool.query("ALTER TABLE customers ADD COLUMN created_by INT NULL");
+      if (!existingCustCols.includes('created_by_name')) await dbPool.query("ALTER TABLE customers ADD COLUMN created_by_name VARCHAR(150) NULL");
+      if (!existingCustCols.includes('updated_by')) await dbPool.query("ALTER TABLE customers ADD COLUMN updated_by INT NULL");
+      if (!existingCustCols.includes('updated_by_name')) await dbPool.query("ALTER TABLE customers ADD COLUMN updated_by_name VARCHAR(150) NULL");
+    } catch (e) {}
+
     // Ensure Payments Columns
     try {
       const [pmtCols] = await dbPool.query("SHOW COLUMNS FROM payments");
@@ -693,6 +738,9 @@ async function ensureUserColumns(dbPool) {
       if (!existingPmtCols.includes('total_received')) {
         await dbPool.query("ALTER TABLE payments ADD COLUMN total_received DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER manual_interest");
       }
+      if (!existingPmtCols.includes('created_by_id')) await dbPool.query("ALTER TABLE payments ADD COLUMN created_by_id INT NULL");
+      if (!existingPmtCols.includes('collected_by')) await dbPool.query("ALTER TABLE payments ADD COLUMN collected_by INT NULL");
+      if (!existingPmtCols.includes('collected_by_name')) await dbPool.query("ALTER TABLE payments ADD COLUMN collected_by_name VARCHAR(150) NULL");
     } catch (e) {
       // ignore
     }
@@ -704,6 +752,10 @@ async function ensureUserColumns(dbPool) {
       if (!existingRelCols.includes('release_type')) {
         await dbPool.query("ALTER TABLE partial_releases ADD COLUMN release_type VARCHAR(50) NOT NULL DEFAULT 'PARTIAL' AFTER payment_id");
       }
+      if (!existingRelCols.includes('created_by_id')) await dbPool.query("ALTER TABLE partial_releases ADD COLUMN created_by_id INT NULL");
+      if (!existingRelCols.includes('released_by')) await dbPool.query("ALTER TABLE partial_releases ADD COLUMN released_by INT NULL");
+      if (!existingRelCols.includes('processed_by')) await dbPool.query("ALTER TABLE partial_releases ADD COLUMN processed_by INT NULL");
+      if (!existingRelCols.includes('released_by_name')) await dbPool.query("ALTER TABLE partial_releases ADD COLUMN released_by_name VARCHAR(150) NULL");
     } catch (e) {
       // ignore
     }
@@ -715,6 +767,10 @@ async function ensureUserColumns(dbPool) {
       if (!existingGoldCols.includes('locker_no')) {
         await dbPool.query("ALTER TABLE gold_items ADD COLUMN locker_no VARCHAR(50) DEFAULT NULL AFTER remarks");
       }
+      if (!existingGoldCols.includes('created_by')) await dbPool.query("ALTER TABLE gold_items ADD COLUMN created_by INT NULL");
+      if (!existingGoldCols.includes('created_by_name')) await dbPool.query("ALTER TABLE gold_items ADD COLUMN created_by_name VARCHAR(150) NULL");
+      if (!existingGoldCols.includes('updated_by')) await dbPool.query("ALTER TABLE gold_items ADD COLUMN updated_by INT NULL");
+      if (!existingGoldCols.includes('updated_by_name')) await dbPool.query("ALTER TABLE gold_items ADD COLUMN updated_by_name VARCHAR(150) NULL");
     } catch (e) {
       // ignore
     }
@@ -726,9 +782,23 @@ async function ensureUserColumns(dbPool) {
       if (!existingLoanCols.includes('manual_final_interest')) {
         await dbPool.query("ALTER TABLE loans ADD COLUMN manual_final_interest DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER total_interest");
       }
-    } catch (e) {
-      // ignore
-    }
+      if (!existingLoanCols.includes('created_by')) await dbPool.query("ALTER TABLE loans ADD COLUMN created_by INT NULL");
+      if (!existingLoanCols.includes('created_by_name')) await dbPool.query("ALTER TABLE loans ADD COLUMN created_by_name VARCHAR(150) NULL");
+      if (!existingLoanCols.includes('updated_by')) await dbPool.query("ALTER TABLE loans ADD COLUMN updated_by INT NULL");
+      if (!existingLoanCols.includes('updated_by_name')) await dbPool.query("ALTER TABLE loans ADD COLUMN updated_by_name VARCHAR(150) NULL");
+      if (!existingLoanCols.includes('closed_by')) await dbPool.query("ALTER TABLE loans ADD COLUMN closed_by INT NULL");
+      if (!existingLoanCols.includes('closed_by_name')) await dbPool.query("ALTER TABLE loans ADD COLUMN closed_by_name VARCHAR(150) NULL");
+    } catch (e) {}
+
+    // Ensure Loan Transactions Columns
+    try {
+      const [txCols] = await dbPool.query("SHOW COLUMNS FROM loan_transactions");
+      const existingTxCols = txCols.map(c => c.Field.toLowerCase());
+      if (!existingTxCols.includes('user_id')) await dbPool.query("ALTER TABLE loan_transactions ADD COLUMN user_id INT NULL");
+      if (!existingTxCols.includes('staff_id')) await dbPool.query("ALTER TABLE loan_transactions ADD COLUMN staff_id INT NULL");
+      if (!existingTxCols.includes('staff_name')) await dbPool.query("ALTER TABLE loan_transactions ADD COLUMN staff_name VARCHAR(150) NULL");
+      if (!existingTxCols.includes('staff_role')) await dbPool.query("ALTER TABLE loan_transactions ADD COLUMN staff_role VARCHAR(50) NULL");
+    } catch (e) {}
   } catch (e) {
     // ignore
   }
