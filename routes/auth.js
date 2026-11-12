@@ -34,20 +34,7 @@ async function getAdminEmail(db) {
 // ============================================================
 // GET /api/auth/admin-status
 // ============================================================
-router.all([
-  '/admin-status',
-  '/admin_status',
-  '/admin-status.php',
-  '/admin_status.php',
-  '/auth/admin-status',
-  '/auth/admin_status',
-  '/auth/admin-status.php',
-  '/auth/admin_status.php',
-  '/api/auth/admin-status',
-  '/api/auth/admin_status',
-  '/api/auth/admin-status.php',
-  '/api/auth/admin_status.php'
-], async (req, res) => {
+router.all(['/admin-status', '/admin_status', '/auth/admin-status', '/api/auth/admin-status'], async (req, res) => {
   try {
     const db = await getPool();
     const adminEmail = await getAdminEmail(db);
@@ -60,7 +47,7 @@ router.all([
       admin_exists: adminExists,
       admin_email: adminEmail,
       config: {
-        otp_expiry_minutes: 5,
+        otp_expiry_minutes: 10,
         resend_cooldown_seconds: 60,
         max_attempts: 5
       }
@@ -77,14 +64,7 @@ router.all([
 // ============================================================
 // POST /api/auth/login
 // ============================================================
-router.all([
-  '/login',
-  '/login.php',
-  '/auth/login',
-  '/auth/login.php',
-  '/api/auth/login',
-  '/api/auth/login.php'
-], async (req, res) => {
+router.all(['/login', '/auth/login', '/api/auth/login'], async (req, res) => {
   console.log('[AUTH] Login request received');
   const username = String(req.body.username || '').trim();
   const password = String(req.body.password || '');
@@ -167,7 +147,7 @@ router.all([
     const otp = String(crypto.randomInt(1000, 10000));
     const loginSessionId = 'SESS-' + Date.now() + '-' + crypto.randomBytes(4).toString('hex').toUpperCase();
     const otpHash = bcrypt.hashSync(otp, 10);
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5-minute expiry
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10-minute expiry
 
     // Invalidate previous pending OTP challenges for this user
     await db.query(
@@ -194,7 +174,7 @@ router.all([
     }
 
     // ------------------------------------------------------------
-    // ADMIN LOGIN FLOW (No manual OTP entry required for Admin)
+    // ADMIN LOGIN FLOW
     // ------------------------------------------------------------
     if (isAdmin) {
       console.log('[AUTH] Admin login authenticated automatically. Generating JWT token...');
@@ -231,7 +211,7 @@ router.all([
     }
 
     // ------------------------------------------------------------
-    // STAFF LOGIN FLOW (Requires manual Admin OTP verification)
+    // STAFF LOGIN FLOW
     // ------------------------------------------------------------
     console.log('[AUTH] Staff credentials validated. Pending Admin OTP verification on Staff screen...');
 
@@ -245,7 +225,7 @@ router.all([
       challengeId: loginSessionId,
       message: 'Staff login credentials validated. Verification code sent to Admin Gmail address.',
       email: adminEmail,
-      expires_in_seconds: 300,
+      expires_in_seconds: 600,
       resend_cooldown_seconds: 60
     });
 
@@ -260,35 +240,19 @@ router.all([
 });
 
 // ============================================================
-// POST /api/auth/verify-admin-otp (For Staff OTP Verification)
+// POST /api/auth/verify-otp
 // ============================================================
 router.all([
   '/verify-admin-otp',
   '/verify_admin_otp',
-  '/verify-admin-otp.php',
-  '/verify_admin_otp.php',
   '/auth/verify-admin-otp',
-  '/auth/verify_admin_otp',
-  '/auth/verify-admin-otp.php',
-  '/auth/verify_admin_otp.php',
   '/api/auth/verify-admin-otp',
-  '/api/auth/verify_admin_otp',
-  '/api/auth/verify-admin-otp.php',
-  '/api/auth/verify_admin_otp.php',
   '/verify-otp',
   '/verify_otp',
-  '/verify-otp.php',
-  '/verify_otp.php',
   '/auth/verify-otp',
-  '/auth/verify_otp',
-  '/auth/verify-otp.php',
-  '/auth/verify_otp.php',
-  '/api/auth/verify-otp',
-  '/api/auth/verify_otp',
-  '/api/auth/verify-otp.php',
-  '/api/auth/verify_otp.php'
+  '/api/auth/verify-otp'
 ], async (req, res) => {
-  console.log('[AUTH] Staff OTP verification requested');
+  console.log('[AUTH] OTP verification requested');
 
   let loginSessionId = String(
     req.body.login_session_id ||
@@ -323,7 +287,6 @@ router.all([
     }
 
     if (!record) {
-      // Fallback: lookup latest active unverified session challenge
       const [latest] = await db.query(
         `SELECT *, UNIX_TIMESTAMP(expires_at) AS expires_at_unix, UNIX_TIMESTAMP(NOW()) AS now_unix FROM otp_challenges WHERE is_verified = 0 ORDER BY id DESC LIMIT 1`
       );
@@ -376,7 +339,7 @@ router.all([
       });
     }
 
-    console.log(`[AUTH] Staff OTP verified successfully for session ${loginSessionId}`);
+    console.log(`[AUTH] OTP verified successfully for session ${loginSessionId}`);
 
     // Mark challenge as verified
     await db.query(
@@ -384,7 +347,7 @@ router.all([
       [record.id]
     );
 
-    // Fetch Staff User Profile
+    // Fetch User Profile
     const [userRows] = await db.query(
       'SELECT id, username, full_name, role, status, email, mobile FROM users WHERE id = ? LIMIT 1',
       [record.user_id]
@@ -393,7 +356,7 @@ router.all([
     if (userRows.length === 0) {
       return res.status(404).json({
         success: false,
-        message: 'Staff user account not found.'
+        message: 'User account not found.'
       });
     }
 
@@ -438,7 +401,7 @@ router.all([
     });
 
   } catch (err) {
-    console.error(`[AUTH ERROR] Staff OTP verification failed: ${err.message}`);
+    console.error(`[AUTH ERROR] OTP verification failed: ${err.message}`);
     return res.status(500).json({
       success: false,
       message: 'Failed to verify OTP code.',
@@ -448,35 +411,19 @@ router.all([
 });
 
 // ============================================================
-// POST /api/auth/resend-admin-otp
+// POST /api/auth/resend-otp
 // ============================================================
 router.all([
   '/resend-admin-otp',
   '/resend_admin_otp',
-  '/resend-admin-otp.php',
-  '/resend_admin_otp.php',
   '/auth/resend-admin-otp',
-  '/auth/resend_admin_otp',
-  '/auth/resend-admin-otp.php',
-  '/auth/resend_admin_otp.php',
   '/api/auth/resend-admin-otp',
-  '/api/auth/resend_admin_otp',
-  '/api/auth/resend-admin-otp.php',
-  '/api/auth/resend_admin_otp.php',
   '/resend-otp',
   '/resend_otp',
-  '/resend-otp.php',
-  '/resend_otp.php',
   '/auth/resend-otp',
-  '/auth/resend_otp',
-  '/auth/resend-otp.php',
-  '/auth/resend_otp.php',
-  '/api/auth/resend-otp',
-  '/api/auth/resend_otp',
-  '/api/auth/resend-otp.php',
-  '/api/auth/resend_otp.php'
+  '/api/auth/resend-otp'
 ], async (req, res) => {
-  console.log('[AUTH] Resend Admin OTP API called');
+  console.log('[AUTH] Resend OTP API called');
 
   let loginSessionId = String(
     req.body.login_session_id ||
@@ -531,7 +478,7 @@ router.all([
       // Generate new 4-digit OTP & update record
       const newOtp = String(crypto.randomInt(1000, 10000));
       const newHash = bcrypt.hashSync(newOtp, 10);
-      const newExpiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5-minute expiry
+      const newExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10-minute expiry
 
       await db.query(
         `UPDATE otp_challenges SET otp_hash = ?, expires_at = ?, attempts = 0, is_verified = 0, created_at = NOW() WHERE id = ?`,
@@ -547,7 +494,7 @@ router.all([
         login_session_id: loginSessionId,
         challenge_id: loginSessionId,
         email: adminEmail,
-        expires_in_seconds: 300,
+        expires_in_seconds: 600,
         resend_cooldown_seconds: 60,
         debug_otp: newOtp,
         otp: newOtp
@@ -558,7 +505,7 @@ router.all([
     const newSessionId = 'SESS-' + Date.now() + '-' + crypto.randomBytes(4).toString('hex').toUpperCase();
     const newOtp = String(crypto.randomInt(1000, 10000));
     const newHash = bcrypt.hashSync(newOtp, 10);
-    const newExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    const newExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     const [adminUser] = await db.query("SELECT id FROM users WHERE UPPER(TRIM(role)) IN ('ADMIN', 'SUPER_ADMIN') ORDER BY id ASC LIMIT 1");
     const userId = adminUser.length > 0 ? adminUser[0].id : 1;
@@ -577,14 +524,14 @@ router.all([
       login_session_id: newSessionId,
       challenge_id: newSessionId,
       email: adminEmail,
-      expires_in_seconds: 300,
+      expires_in_seconds: 600,
       resend_cooldown_seconds: 60,
       debug_otp: newOtp,
       otp: newOtp
     });
 
   } catch (err) {
-    console.error(`[OTP ERROR] Resend Admin OTP failed: ${err.message}`);
+    console.error(`[OTP ERROR] Resend OTP failed: ${err.message}`);
     return res.status(500).json({
       success: false,
       message: 'Failed to resend OTP code.',
@@ -596,16 +543,7 @@ router.all([
 // ============================================================
 // POST /api/auth/test-email
 // ============================================================
-router.all([
-  '/test-email',
-  '/test-email.php',
-  '/test_email',
-  '/test_email.php',
-  '/auth/test-email',
-  '/auth/test-email.php',
-  '/api/auth/test-email',
-  '/api/auth/test-email.php'
-], async (req, res) => {
+router.all(['/test-email', '/test_email', '/auth/test-email', '/api/auth/test-email'], async (req, res) => {
   const db = await getPool();
   const adminEmail = await getAdminEmail(db);
   const targetEmail = String(req.body.email || req.query.email || adminEmail).trim();
@@ -632,7 +570,7 @@ router.all([
 // ============================================================
 // GET /api/auth/me
 // ============================================================
-router.get(['/me', '/me.php', '/auth/me', '/auth/me.php', '/api/auth/me', '/api/auth/me.php'], authenticate, async (req, res) => {
+router.get(['/me', '/auth/me', '/api/auth/me'], authenticate, async (req, res) => {
   try {
     const user = req.user;
     delete user.password_hash;
@@ -653,7 +591,7 @@ router.get(['/me', '/me.php', '/auth/me', '/auth/me.php', '/api/auth/me', '/api/
 // ============================================================
 // POST /api/auth/refresh-token
 // ============================================================
-router.post(['/refresh-token', '/refresh_token', '/refresh-token.php', '/refresh_token.php', '/auth/refresh-token', '/api/auth/refresh-token'], async (req, res) => {
+router.post(['/refresh-token', '/refresh_token', '/auth/refresh-token', '/api/auth/refresh-token'], async (req, res) => {
   const refreshToken = String(req.body.refreshToken || req.body.refresh_token || '').trim();
 
   if (!refreshToken) {
@@ -688,7 +626,7 @@ router.post(['/refresh-token', '/refresh_token', '/refresh-token.php', '/refresh
 // ============================================================
 // POST /api/auth/logout
 // ============================================================
-router.post(['/logout', '/logout.php', '/auth/logout', '/api/auth/logout'], async (req, res) => {
+router.post(['/logout', '/auth/logout', '/api/auth/logout'], async (req, res) => {
   return res.json({
     success: true,
     message: 'Logged out successfully.'
@@ -696,9 +634,9 @@ router.post(['/logout', '/logout.php', '/auth/logout', '/api/auth/logout'], asyn
 });
 
 // ============================================================
-// POST /auth/admin_registration (.php)
+// POST /api/auth/admin-registration
 // ============================================================
-router.post(['/admin_registration', '/admin_registration.php'], async (req, res) => {
+router.post(['/admin-registration', '/admin_registration'], async (req, res) => {
   const action = String(req.body.action || '').trim().toUpperCase();
 
   if (!action) {
@@ -726,9 +664,9 @@ router.post(['/admin_registration', '/admin_registration.php'], async (req, res)
         return res.status(422).json({ success: false, message: 'Email address is required.' });
       }
 
-      const otp = String(Math.floor(1000 + Math.random() * 9000));
+      const otp = String(crypto.randomInt(1000, 10000));
       const otpHash = bcrypt.hashSync(otp, 10);
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
       await db.query('UPDATE admin_registration_otps SET verified = 1 WHERE email = ? AND verified = 0', [email]);
       const [insertOtp] = await db.query(
@@ -749,7 +687,7 @@ router.post(['/admin_registration', '/admin_registration.php'], async (req, res)
         success: true,
         message: emailSent ? 'OTP sent successfully to your email address.' : 'OTP generated successfully.',
         email_sent: emailSent,
-        expires_in_seconds: 300,
+        expires_in_seconds: 600,
         resend_after_seconds: 60,
         debug_otp: otp,
         otp
@@ -854,9 +792,9 @@ router.post(['/admin_registration', '/admin_registration.php'], async (req, res)
 });
 
 // ============================================================
-// POST /auth/create_admin (.php)
+// POST /api/auth/create-admin
 // ============================================================
-router.post(['/create_admin', '/create_admin.php'], async (req, res) => {
+router.post(['/create-admin', '/create_admin'], async (req, res) => {
   req.body.action = 'CREATE_ADMIN';
   return router.handle(req, res);
 });
