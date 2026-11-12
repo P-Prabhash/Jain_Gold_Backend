@@ -114,22 +114,22 @@ app.all([
 
 app.use(['/api/auth', '/auth'], authRoutes);
 app.use(['/api/central-ledger', '/central-ledger', '/api/central_ledger', '/central_ledger'], centralLedgerRoutes);
-app.use('/customers', customerRoutes);
-app.use('/dashboard', dashboardRoutes);
-app.use('/gold', goldRoutes);
-app.use('/interest', interestRoutes);
-app.use('/loans', loanRoutes);
-app.use('/payments', paymentRoutes);
-app.use('/receipts', receiptRoutes);
-app.use('/releases', releaseRoutes);
-app.use('/reports', reportRoutes);
-app.use('/transactions', transactionRoutes);
-app.use('/users', userRoutes);
-app.use('/settings', settingsRoutes);
-app.use('/upload', uploadRoutes);
-app.use('/backup', backupRoutes);
-app.use('/seed', seedRoutes);
-app.use('/test_workflow', testWorkflowRoutes);
+app.use(['/api/customers', '/customers'], customerRoutes);
+app.use(['/api/dashboard', '/dashboard'], dashboardRoutes);
+app.use(['/api/gold', '/gold'], goldRoutes);
+app.use(['/api/interest', '/interest'], interestRoutes);
+app.use(['/api/loans', '/loans'], loanRoutes);
+app.use(['/api/payments', '/payments'], paymentRoutes);
+app.use(['/api/receipts', '/receipts'], receiptRoutes);
+app.use(['/api/releases', '/releases'], releaseRoutes);
+app.use(['/api/reports', '/reports'], reportRoutes);
+app.use(['/api/transactions', '/transactions'], transactionRoutes);
+app.use(['/api/users', '/users'], userRoutes);
+app.use(['/api/settings', '/settings'], settingsRoutes);
+app.use(['/api/upload', '/upload'], uploadRoutes);
+app.use(['/api/backup', '/backup'], backupRoutes);
+app.use(['/api/seed', '/seed'], seedRoutes);
+app.use(['/api/test_workflow', '/test_workflow'], testWorkflowRoutes);
 app.use(['/api-docs', '/docs', '/swagger.json'], docsRoutes);
 
 // Health check endpoint
