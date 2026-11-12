@@ -10,7 +10,6 @@ import '../../providers/loan_provider.dart';
 import '../../services/api_service.dart';
 import '../../widgets/a4_receipt_viewer.dart';
 import '../../widgets/gold_badge.dart';
-import '../../widgets/responsive_layout.dart';
 
 import 'create_new_loan_screen.dart';
 import 'create_existing_loan_screen.dart';
@@ -210,10 +209,10 @@ class _LoanListScreenState
   // ============================================================
 
   Future<void> _openNewLoanModal() async {
-    final result = await showResponsiveDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      child: const CreateNewLoanScreen(),
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => const CreateNewLoanScreen(),
+      ),
     );
 
     if (result == true && mounted) {
@@ -226,10 +225,10 @@ class _LoanListScreenState
   // ============================================================
 
   Future<void> _openExistingLoanModal() async {
-    final result = await showResponsiveDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      child: const CreateExistingLoanScreen(),
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => const CreateExistingLoanScreen(),
+      ),
     );
 
     if (result == true && mounted) {
@@ -242,10 +241,10 @@ class _LoanListScreenState
   // ============================================================
 
   Future<void> _openAdditionalLoanModal() async {
-    final result = await showResponsiveDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      child: const CreateAdditionalLoanScreen(),
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => const CreateAdditionalLoanScreen(),
+      ),
     );
 
     if (result == true && mounted) {

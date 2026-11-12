@@ -4,6 +4,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../config/constants.dart';
 import '../models/customer.dart';
 import '../models/gold_item.dart';
 import '../models/loan.dart';
@@ -15,10 +16,7 @@ import '../models/receipt_data.dart';
 import 'storage_service.dart';
 
 class ApiService {
-  static String get baseUrl => 'https://jain-gold-backend.onrender.com';
-  static String get activeBaseUrl => 'https://jain-gold-backend.onrender.com';
-
-  static set baseUrl(String value) {}
+  static String baseUrl = AppConstants.defaultApiBaseUrl;
   static String? authToken;
 
   // Current authenticated user for role checks outside AuthProvider.
@@ -98,6 +96,18 @@ class ApiService {
   }
 
   // ============================================================
+  // ENDPOINT CLEANER (NODE.JS REST ROUTE NORMALIZATION)
+  // ============================================================
+
+  static String _cleanEndpoint(String endpoint) {
+    var e = endpoint.trim();
+    if (e.endsWith('.php')) {
+      e = e.substring(0, e.length - 4);
+    }
+    return e;
+  }
+
+  // ============================================================
   // GET REQUEST
   // ============================================================
 
@@ -105,10 +115,11 @@ class ApiService {
     String endpoint, [
     Map<String, String>? queryParams,
   ]) async {
+    final clean = _cleanEndpoint(endpoint);
     Uri uri;
 
     try {
-      uri = Uri.parse('$activeBaseUrl/$endpoint');
+      uri = Uri.parse('$baseUrl/$clean');
 
       if (queryParams != null &&
           queryParams.isNotEmpty) {
@@ -130,9 +141,6 @@ class ApiService {
     }
 
     try {
-      // Do not send Content-Type for GET requests.
-      // This avoids unnecessary CORS preflight
-      // requests in Flutter Web.
       final headers = <String, String>{
         'Accept': 'application/json',
         if (authToken != null &&
@@ -166,10 +174,11 @@ class ApiService {
     String endpoint,
     Map<String, dynamic> data,
   ) async {
+    final clean = _cleanEndpoint(endpoint);
     Uri uri;
 
     try {
-      uri = Uri.parse('$activeBaseUrl/$endpoint');
+      uri = Uri.parse('$baseUrl/$clean');
     } catch (e) {
       throw Exception(
         'Invalid API URL: $e',
@@ -206,7 +215,7 @@ class ApiService {
     if (response.body.trim().isEmpty) {
       throw Exception(
         'Empty server response '
-        '(HTTP $response.statusCode)',
+        '(HTTP ${response.statusCode})',
       );
     }
 
@@ -217,7 +226,7 @@ class ApiService {
     } catch (e) {
       throw Exception(
         'Invalid JSON response from server '
-        '(HTTP $response.statusCode): '
+        '(HTTP ${response.statusCode}): '
         '${response.body}',
       );
     }
@@ -236,7 +245,7 @@ class ApiService {
     }
 
     String message =
-        'Server error ($response.statusCode)';
+        'Server error (${response.statusCode})';
 
     if (decoded is Map<String, dynamic>) {
       final serverMessage =
@@ -342,7 +351,7 @@ class ApiService {
     String password,
   ) async {
     final res = await _post(
-      'auth/login.php',
+      'api/auth/login',
       {
         'username': username,
         'password': password,
@@ -350,12 +359,60 @@ class ApiService {
     );
 
     if (res is Map<String, dynamic>) {
-      if (res['token'] != null) {
-        authToken = res['token'].toString();
+      final bool requiresOtp = res['otp_required'] == true ||
+          res['requires_otp'] == true ||
+          res['requiresOtp'] == true;
+
+      // If Admin login without OTP (requires_otp == false), save tokens & user
+      if (!requiresOtp) {
+        final token = res['token'] ?? res['accessToken'] ?? res['data']?['token'];
+        if (token != null && token.toString().trim().isNotEmpty) {
+          authToken = token.toString();
+          StorageService.saveToken(authToken!);
+        }
+
+        final user = res['user'] ?? res['data']?['user'];
+        if (user is Map) {
+          currentUser = Map<String, dynamic>.from(user);
+          StorageService.saveUser(jsonEncode(currentUser));
+        }
+      }
+    }
+
+    return Map<String, dynamic>.from(res);
+  }
+
+  // ============================================================
+  // OTP VERIFICATION
+  // ============================================================
+
+  static Future<Map<String, dynamic>> verifyAdminOtp(
+    String loginSessionId,
+    String otp,
+  ) async {
+    final res = await _post(
+      'api/auth/verify-otp',
+      {
+        'login_session_id': loginSessionId,
+        'challenge_id': loginSessionId,
+        'challengeId': loginSessionId,
+        'otp': otp,
+      },
+    );
+
+    if (res is Map<String, dynamic>) {
+      final token = res['token'] ?? res['accessToken'] ?? res['data']?['token'];
+      if (token != null && token.toString().trim().isNotEmpty) {
+        authToken = token.toString();
         StorageService.saveToken(authToken!);
       }
 
-      final user = res['user'];
+      final refreshToken = res['refreshToken'] ?? res['data']?['refreshToken'];
+      if (refreshToken != null && refreshToken.toString().trim().isNotEmpty) {
+        StorageService.saveRefreshToken(refreshToken.toString());
+      }
+
+      final user = res['user'] ?? res['data']?['user'];
       if (user is Map) {
         currentUser = Map<String, dynamic>.from(user);
         StorageService.saveUser(jsonEncode(currentUser));
@@ -363,6 +420,64 @@ class ApiService {
     }
 
     return Map<String, dynamic>.from(res);
+  }
+
+  static Future<Map<String, dynamic>> verifyOtp(
+    String challengeId,
+    String otp,
+  ) {
+    return verifyAdminOtp(challengeId, otp);
+  }
+
+  static Future<Map<String, dynamic>> resendAdminOtp(
+    String loginSessionId,
+  ) async {
+    final res = await _post(
+      'api/auth/resend-otp',
+      {
+        'login_session_id': loginSessionId,
+        'challenge_id': loginSessionId,
+        'challengeId': loginSessionId,
+      },
+    );
+    return Map<String, dynamic>.from(res);
+  }
+
+  static Future<Map<String, dynamic>> resendOtp(
+    String challengeId,
+  ) {
+    return resendAdminOtp(challengeId);
+  }
+
+  static Future<Map<String, dynamic>> getMe() async {
+    final res = await _get('api/auth/me');
+    return Map<String, dynamic>.from(res);
+  }
+
+  static Future<Map<String, dynamic>> refreshToken(
+    String refreshToken,
+  ) async {
+    final res = await _post(
+      'api/auth/refresh-token',
+      {
+        'refreshToken': refreshToken,
+        'refresh_token': refreshToken,
+      },
+    );
+    if (res is Map<String, dynamic> && res['token'] != null) {
+      authToken = res['token'].toString();
+      StorageService.saveToken(authToken!);
+    }
+    return Map<String, dynamic>.from(res);
+  }
+
+  static Future<Map<String, dynamic>> logoutApi() async {
+    try {
+      final res = await _post('api/auth/logout', {});
+      return Map<String, dynamic>.from(res);
+    } catch (_) {
+      return {'success': true};
+    }
   }
 
   // ============================================================
@@ -389,7 +504,7 @@ class ApiService {
     }
 
     final res = await _post(
-      'users/update_admin_credentials.php',
+      'users/update_admin_credentials',
       data,
     );
 
@@ -418,7 +533,7 @@ class ApiService {
   static Future<Map<String, dynamic>>
       adminExists() async {
     final res = await _get(
-      'auth/admin_status.php',
+      'auth/admin_status',
     );
 
     return Map<String, dynamic>.from(
@@ -431,7 +546,7 @@ class ApiService {
     String email,
   ) async {
     final res = await _post(
-      'auth/admin_registration.php',
+      'auth/admin_registration',
       {
         'action': 'send_otp',
         'email': email.trim(),
@@ -449,7 +564,7 @@ class ApiService {
     String otp,
   ) async {
     final res = await _post(
-      'auth/admin_registration.php',
+      'auth/admin_registration',
       {
         'action': 'verify_otp',
         'email': email.trim(),
@@ -473,7 +588,7 @@ class ApiService {
         'create_admin';
 
     final res = await _post(
-      'auth/admin_registration.php',
+      'auth/admin_registration',
       requestData,
     );
 
@@ -486,10 +601,29 @@ class ApiService {
   // DASHBOARD
   // ============================================================
 
-  static Future<DashboardSummary>
-      getDashboard() async {
+  static Future<DashboardSummary> getDashboard({
+    String? fromDate,
+    String? toDate,
+    String? period,
+  }) async {
+    final params = <String, String>{};
+    if (fromDate != null && fromDate.trim().isNotEmpty) {
+      params['from_date'] = fromDate.trim();
+      params['fromDate'] = fromDate.trim();
+      params['start_date'] = fromDate.trim();
+    }
+    if (toDate != null && toDate.trim().isNotEmpty) {
+      params['to_date'] = toDate.trim();
+      params['toDate'] = toDate.trim();
+      params['end_date'] = toDate.trim();
+    }
+    if (period != null && period.trim().isNotEmpty) {
+      params['period'] = period.trim();
+    }
+
     final res = await _get(
-      'dashboard/summary.php',
+      'dashboard/summary',
+      params.isNotEmpty ? params : null,
     );
 
     return DashboardSummary.fromJson(
@@ -515,7 +649,7 @@ class ApiService {
     }
 
     final res = await _get(
-      'customers/list.php',
+      'customers/list',
       params,
     );
 
@@ -533,7 +667,7 @@ class ApiService {
     Map<String, dynamic> data,
   ) async {
     final res = await _post(
-      'customers/create.php',
+      'customers/create',
       data,
     );
 
@@ -547,7 +681,7 @@ class ApiService {
     Map<String, dynamic> data,
   ) async {
     final res = await _post(
-      'customers/update.php',
+      'customers/update',
       data,
     );
 
@@ -561,7 +695,7 @@ class ApiService {
     int customerId,
   ) async {
     final res = await _get(
-      'customers/get.php',
+      'customers/get',
       {
         'id': customerId.toString(),
       },
@@ -604,7 +738,7 @@ class ApiService {
     }
 
     final res = await _get(
-      'gold/list.php',
+      'gold/list',
       params,
     );
 
@@ -622,7 +756,7 @@ class ApiService {
     Map<String, dynamic> data,
   ) async {
     final res = await _post(
-      'gold/create.php',
+      'gold/create',
       data,
     );
 
@@ -636,7 +770,7 @@ class ApiService {
     Map<String, dynamic> data,
   ) async {
     final res = await _post(
-      'gold/update.php',
+      'gold/update',
       data,
     );
 
@@ -683,7 +817,7 @@ class ApiService {
     }
 
     final res = await _get(
-      'loans/list.php',
+      'loans/list',
       params,
     );
 
@@ -706,7 +840,7 @@ class ApiService {
     Map<String, dynamic> data,
   ) async {
     return await _post(
-      'loans/create_new.php',
+      'loans/create_new',
       data,
     );
   }
@@ -776,7 +910,7 @@ class ApiService {
     }
 
     final res = await _post(
-      'loans/create_existing.php',
+      'loans/create_existing',
       payload,
     );
 
@@ -824,7 +958,7 @@ class ApiService {
     }
 
     return await _post(
-      'loans/create_additional.php',
+      'loans/create_additional',
       payload,
     );
   }
@@ -838,7 +972,7 @@ class ApiService {
     int loanId,
   ) async {
     final res = await _get(
-      'loans/get.php',
+      'loans/get',
       {
         'id': loanId.toString(),
       },
@@ -858,7 +992,7 @@ class ApiService {
     Map<String, dynamic> data,
   ) async {
     return await _post(
-      'loans/close.php',
+      'loans/close',
       data,
     );
   }
@@ -895,7 +1029,7 @@ class ApiService {
     }
 
     final res = await _get(
-      'payments/list.php',
+      'payments/list',
       params,
     );
 
@@ -914,7 +1048,7 @@ class ApiService {
     Map<String, dynamic> data,
   ) async {
     return await _post(
-      'payments/create.php',
+      'payments/create',
       data,
     );
   }
@@ -942,7 +1076,7 @@ class ApiService {
       params['search'] = search.trim();
     }
 
-    final res = await _get('releases/list.php', params);
+    final res = await _get('releases/list', params);
     final list = res['data'] as List? ?? [];
     return list.map((r) => PartialRelease.fromJson(r)).toList();
   }
@@ -952,7 +1086,7 @@ class ApiService {
     Map<String, dynamic> data,
   ) async {
     return await _post(
-      'releases/create_partial.php',
+      'releases/create_partial',
       data,
     );
   }
@@ -999,7 +1133,7 @@ class ApiService {
     }
 
     final res = await _get(
-      'interest/calculate.php',
+      'interest/calculate',
       params,
     );
 
@@ -1065,7 +1199,7 @@ class ApiService {
     }
 
     final res = await _get(
-      'transactions/ledger.php',
+      'transactions/ledger',
       params,
     );
 
@@ -1111,7 +1245,7 @@ class ApiService {
     }
 
     final res = await _get(
-      'receipts/get.php',
+      'receipts/get',
       params,
     );
 
@@ -1141,7 +1275,7 @@ class ApiService {
   }
 
   final res = await _post(
-    'users/update_permissions.php',
+    'users/update_permissions',
     {
       'user_id': userId,
       'permission_codes': permissionCodes,
@@ -1183,7 +1317,7 @@ class ApiService {
     }
 
     final res = await _get(
-      'reports/summary.php',
+      'reports/summary',
       params,
     );
 
@@ -1202,7 +1336,7 @@ class ApiService {
     String type,
   ) async {
     final res = await _post(
-      'upload.php',
+      'upload',
       {
         'image_base64': base64Image,
         'image': base64Image,
@@ -1235,7 +1369,7 @@ class ApiService {
     }
 
     final res = await _get(
-      'loans/search_additional_customers.php',
+      'loans/search_additional_customers',
       {
         'search': query,
       },
@@ -1268,7 +1402,7 @@ class ApiService {
     int customerId,
   ) async {
     final res = await _get(
-      'gold/available_for_additional.php',
+      'gold/available_for_additional',
       {
         'customer_id':
             customerId.toString(),
@@ -1309,7 +1443,7 @@ class ApiService {
     }
 
     final res = await _get(
-      'customers/search_additional.php',
+      'customers/search_additional',
       {
         'search': search,
         'limit': '30',
@@ -1372,8 +1506,8 @@ class ApiService {
     ).query;
 
     final endpoint = query.isEmpty
-        ? 'users/list.php'
-        : 'users/list.php?$query';
+        ? 'users/list'
+        : 'users/list?$query';
 
     final res =
         await _get(endpoint);
@@ -1437,7 +1571,7 @@ class ApiService {
     ).query;
 
     final res = await _get(
-      'users/search.php?$query',
+      'users/search?$query',
     );
 
     return Map<String, dynamic>.from(
@@ -1451,7 +1585,7 @@ class ApiService {
     int userId,
   ) async {
     final res = await _get(
-      'users/get.php?user_id=$userId',
+      'users/get?user_id=$userId',
     );
 
     return Map<String, dynamic>.from(
@@ -1465,7 +1599,7 @@ class ApiService {
     Map<String, dynamic> data,
   ) async {
     final res = await _post(
-      'users/create.php',
+      'users/create',
       data,
     );
 
@@ -1480,7 +1614,7 @@ class ApiService {
     Map<String, dynamic> data,
   ) async {
     final res = await _post(
-      'users/update.php',
+      'users/update',
       data,
     );
 
@@ -1511,7 +1645,7 @@ class ApiService {
     }
 
     final res = await _post(
-      'users/toggle_status.php',
+      'users/toggle_status',
       data,
     );
 
@@ -1539,7 +1673,7 @@ class ApiService {
     }
 
     final res = await _post(
-      'users/delete.php',
+      'users/delete',
       data,
     );
 
@@ -1552,7 +1686,7 @@ class ApiService {
       Map<String, dynamic>>
       getUserRoles() async {
     final res = await _get(
-      'users/roles.php',
+      'users/roles',
     );
 
     return Map<String, dynamic>.from(
@@ -1582,7 +1716,7 @@ class ApiService {
     }
 
     final res = await _post(
-      'users/assign_role.php',
+      'users/assign_role',
       data,
     );
 
@@ -1597,7 +1731,7 @@ class ApiService {
     int userId,
   ) async {
     final res = await _get(
-      'users/permissions.php?user_id=$userId',
+      'users/permissions?user_id=$userId',
     );
 
     return Map<String, dynamic>.from(
@@ -1627,7 +1761,7 @@ class ApiService {
     }
 
     final res = await _post(
-      'users/reset_password.php',
+      'users/reset_password',
       data,
     );
 
@@ -1640,72 +1774,67 @@ class ApiService {
   // DATABASE BACKUP & RESTORE
   // ============================================================
 
-  // ==================== DATABASE BACKUP ====================
+  static Future<Map<String, dynamic>> createDatabaseBackup() async {
+    final res = await _post(
+      'backup/manual_backup',
+      <String, dynamic>{},
+    );
 
-static Future<Map<String, dynamic>> createDatabaseBackup() async {
-  final res = await _post(
-    'backup/manual_backup.php',
-    <String, dynamic>{},
-  );
+    return Map<String, dynamic>.from(
+      res['data'] ?? {},
+    );
+  }
 
-  return Map<String, dynamic>.from(
-    res['data'] ?? {},
-  );
-}
+  static Future<List<Map<String, dynamic>>> getDatabaseBackups() async {
+    final res = await _get(
+      'backup/list_backups',
+    );
 
-static Future<List<Map<String, dynamic>>> getDatabaseBackups() async {
-  final res = await _get(
-    'backup/list_backups.php',
-  );
+    final data = res['data'];
+    final list = data is Map
+        ? (data['backups'] as List? ?? [])
+        : (data as List? ?? []);
 
-  final data = res['data'];
-  final list = data is Map
-      ? (data['backups'] as List? ?? [])
-      : (data as List? ?? []);
+    return list
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
 
-  return list
-      .whereType<Map>()
-      .map(
-        (item) => Map<String, dynamic>.from(item),
-      )
-      .toList();
-}
+  static Future<Map<String, dynamic>> restoreDatabaseBackup(
+    String fileName,
+  ) async {
+    final res = await _post(
+      'backup/restore_backup',
+      <String, dynamic>{
+        'file_name': fileName,
+        'confirmation': 'restore',
+      },
+    );
 
-static Future<Map<String, dynamic>> restoreDatabaseBackup(
-  String fileName,
-) async {
-  final res = await _post(
-    'backup/restore_backup.php',
-    <String, dynamic>{
-      'file_name': fileName,
-      'confirmation': 'restore',
-    },
-  );
+    return Map<String, dynamic>.from(
+      res['data'] ?? {},
+    );
+  }
 
-  return Map<String, dynamic>.from(
-    res['data'] ?? {},
-  );
-}
-
-static String getDatabaseBackupDownloadUrl(
-  String fileName,
-) {
-  return '$baseUrl/backup/download_backup.php?file_name=${Uri.encodeComponent(fileName)}';
-}
+  static String getDatabaseBackupDownloadUrl(
+    String fileName,
+  ) {
+    return '$baseUrl/backup/download_backup?file_name=${Uri.encodeComponent(fileName)}';
+  }
 
   // ============================================================
   // SETTINGS
   // ============================================================
 
   static Future<Map<String, dynamic>> getSettings() async {
-    final res = await _get('settings/get.php');
+    final res = await _get('settings/get');
     return Map<String, dynamic>.from(res['data'] ?? res);
   }
 
   static Future<Map<String, dynamic>> saveSettings(
     Map<String, dynamic> data,
   ) async {
-    final res = await _post('settings/save.php', data);
+    final res = await _post('settings/save', data);
     return Map<String, dynamic>.from(res['data'] ?? res);
   }
 

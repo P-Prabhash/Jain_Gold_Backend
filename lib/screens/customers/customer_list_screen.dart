@@ -10,7 +10,6 @@ import '../../models/customer.dart';
 import '../../providers/customer_provider.dart';
 import '../../services/api_service.dart';
 import '../../widgets/gold_badge.dart';
-import '../../widgets/responsive_layout.dart';
 import 'new_customer_screen.dart';
 import 'customer_profile_screen.dart';
 
@@ -109,9 +108,10 @@ class _CustomerListScreenState
   // ============================================================
 
   void _openNewCustomerModal() async {
-    final result = await showResponsiveDialog<bool>(
-      context: context,
-      child: const NewCustomerScreen(),
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => const NewCustomerScreen(),
+      ),
     );
 
     if (result == true && mounted) {
