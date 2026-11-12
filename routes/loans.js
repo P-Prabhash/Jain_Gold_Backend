@@ -18,9 +18,9 @@ async function logTransaction(db, customerId, loanId, txType, amount, weight, re
 }
 
 // ============================================================
-// GET /loans/list (.php)
+// GET /loans/list
 // ============================================================
-router.get(['/list', '/list.php'], requirePermission('loan.view'), async (req, res) => {
+router.get(['/list', '/loans/list'], requirePermission('loan.view'), async (req, res) => {
   const status = String(req.query.status || '').trim().toUpperCase();
   const customerId = parseInt(req.query.customer_id || '0', 10);
   const search = String(req.query.search || '').trim();
@@ -91,9 +91,9 @@ router.get(['/list', '/list.php'], requirePermission('loan.view'), async (req, r
 });
 
 // ============================================================
-// GET /loans/get (.php)
+// GET /loans/get
 // ============================================================
-router.get(['/get', '/get.php'], requirePermission('loan.view'), async (req, res) => {
+router.get(['/get', '/loans/get'], requirePermission('loan.view'), async (req, res) => {
   const id = parseInt(req.query.id || req.query.loan_id || '0', 10);
   if (id <= 0) {
     return res.status(400).json({ success: false, message: 'Valid loan ID is required' });
@@ -452,16 +452,16 @@ async function handleCreateLoan(req, res, defaultLoanType = 'NEW_LOAN') {
 }
 
 // ============================================================
-// POST /loans/create (.php), /loans/create_new (.php)
+// POST /loans/create & /loans/create_new
 // ============================================================
-router.post(['/create', '/create.php', '/create_new', '/create_new.php'], requirePermission('loan.create'), async (req, res) => {
+router.post(['/create', '/create_new', '/loans/create', '/loans/create_new'], requirePermission('loan.create'), async (req, res) => {
   return handleCreateLoan(req, res, 'NEW_LOAN');
 });
 
 // ============================================================
-// POST /loans/create_additional (.php)
+// POST /loans/create_additional
 // ============================================================
-router.post(['/create_additional', '/create_additional.php'], requirePermission('loan.additional'), async (req, res) => {
+router.post(['/create_additional', '/loans/create_additional'], requirePermission('loan.additional'), async (req, res) => {
   const customerId = parseInt(req.body.customer_id || '0', 10);
   const loanId = parseInt(req.body.loan_id || req.body.parent_loan_id || '0', 10);
   const additionalAmount = parseFloat(req.body.principal_amount || req.body.additional_amount || '0');
@@ -674,16 +674,16 @@ router.post(['/create_additional', '/create_additional.php'], requirePermission(
 });
 
 // ============================================================
-// POST /loans/create_existing (.php)
+// POST /loans/create_existing
 // ============================================================
-router.post(['/create_existing', '/create_existing.php'], requirePermission('loan.existing'), async (req, res) => {
+router.post(['/create_existing', '/loans/create_existing'], requirePermission('loan.existing'), async (req, res) => {
   return handleCreateLoan(req, res, 'EXISTING_LOAN');
 });
 
 // ============================================================
-// POST /loans/close (.php)
+// POST /loans/close
 // ============================================================
-router.post(['/close', '/close.php'], requirePermission('loan.close'), async (req, res) => {
+router.post(['/close', '/loans/close'], requirePermission('loan.close'), async (req, res) => {
   const loanId = parseInt(req.body.loan_id || req.body.loanId || req.body.id || '0', 10);
   const manualFinalInterest = parseFloat(req.body.manual_final_interest || req.body.manualFinalInterest || req.body.manual_interest || '0');
   const paymentAmount = parseFloat(req.body.payment_amount || req.body.paymentAmount || req.body.amount || req.body.payment_received || '0');
@@ -1042,9 +1042,9 @@ router.post(['/close', '/close.php'], requirePermission('loan.close'), async (re
 });
 
 // ============================================================
-// GET /loans/search_additional_customers (.php)
+// GET /loans/search_additional_customers
 // ============================================================
-router.get(['/search_additional_customers', '/search_additional_customers.php'], requirePermission('loan.view'), async (req, res) => {
+router.get(['/search_additional_customers', '/loans/search_additional_customers'], requirePermission('loan.view'), async (req, res) => {
   const queryParam = String(req.query.search || req.query.q || req.query.query || '').trim();
 
   try {

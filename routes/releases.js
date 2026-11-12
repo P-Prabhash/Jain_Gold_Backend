@@ -4,9 +4,9 @@ const { getPool } = require('../config/database');
 const { requirePermission } = require('../middleware/authMiddleware');
 
 // ============================================================
-// GET /releases/list (.php)
+// GET /releases/list
 // ============================================================
-router.get(['/list', '/list.php'], requirePermission('release.view'), async (req, res) => {
+router.get(['/list', '/releases/list'], requirePermission('release.view'), async (req, res) => {
   const loanId = parseInt(req.query.loan_id || '0', 10);
   const customerId = parseInt(req.query.customer_id || '0', 10);
   const search = String(req.query.search || '').trim();
@@ -54,9 +54,9 @@ router.get(['/list', '/list.php'], requirePermission('release.view'), async (req
 });
 
 // ============================================================
-// POST /releases/create_partial (.php)
+// POST /releases/create_partial
 // ============================================================
-router.post(['/create_partial', '/create_partial.php'], requirePermission('release.create'), async (req, res) => {
+router.post(['/create_partial', '/releases/create_partial'], requirePermission('release.create'), async (req, res) => {
   const loanId = parseInt(req.body.loan_id || '0', 10);
   const items = req.body.items || req.body.release_items || [];
   const paymentAmount = parseFloat(req.body.payment_amount || '0');

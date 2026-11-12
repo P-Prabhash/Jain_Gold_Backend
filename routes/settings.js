@@ -18,9 +18,9 @@ async function ensureSettingsTable(db) {
 }
 
 // ============================================================
-// GET /settings/get (.php)
+// GET /settings/get
 // ============================================================
-router.get(['/get', '/get.php'], requirePermission('settings.view'), async (req, res) => {
+router.get(['/get', '/settings/get'], requirePermission('settings.view'), async (req, res) => {
   try {
     const db = await getPool();
     await ensureSettingsTable(db);
@@ -50,9 +50,9 @@ router.get(['/get', '/get.php'], requirePermission('settings.view'), async (req,
 });
 
 // ============================================================
-// POST /settings/save (.php)
+// POST /settings/save
 // ============================================================
-router.post(['/save', '/save.php'], requirePermission('settings.edit'), async (req, res) => {
+router.post(['/save', '/settings/save'], requirePermission('settings.edit'), async (req, res) => {
   const shopName = String(req.body.shop_name || req.body.shopName || '').trim();
   const shopAddress = String(req.body.shop_address || req.body.shopAddress || '').trim();
   const shopPhone = String(req.body.shop_phone || req.body.shopPhone || '').trim();
@@ -89,9 +89,9 @@ router.post(['/save', '/save.php'], requirePermission('settings.edit'), async (r
 });
 
 // ============================================================
-// POST /settings/update_admin_credentials (.php)
+// POST /settings/update_admin_credentials
 // ============================================================
-router.post(['/update_admin_credentials', '/update_admin_credentials.php'], requirePermission('settings.edit'), async (req, res) => {
+router.post(['/update_admin_credentials', '/settings/update_admin_credentials'], requirePermission('settings.edit'), async (req, res) => {
   const currentPassword = String(req.body.current_password || req.body.currentPassword || req.body.old_password || req.body.oldPassword || '').trim();
   const newUsername = String(req.body.new_username || req.body.newUsername || req.body.username || '').trim();
   const newPassword = String(req.body.new_password || req.body.newPassword || req.body.password || '').trim();

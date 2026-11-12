@@ -11,9 +11,9 @@ if (!fs.existsSync(backupsDir)) {
 }
 
 // ============================================================
-// GET /backup/list (.php) / list_backups (.php)
+// GET /backup/list & /backup/list_backups
 // ============================================================
-router.get(['/list', '/list.php', '/list_backups', '/list_backups.php'], requirePermission('settings.view'), async (req, res) => {
+router.get(['/list', '/list_backups', '/backup/list', '/backup/list_backups'], requirePermission('settings.view'), async (req, res) => {
   try {
     const files = fs.readdirSync(backupsDir);
     const backups = [];
@@ -46,9 +46,9 @@ router.get(['/list', '/list.php', '/list_backups', '/list_backups.php'], require
 });
 
 // ============================================================
-// POST /backup/create (.php) / manual_backup (.php)
+// POST /backup/create & /backup/manual_backup
 // ============================================================
-router.post(['/create', '/create.php', '/manual_backup', '/manual_backup.php'], requirePermission('settings.edit'), async (req, res) => {
+router.post(['/create', '/manual_backup', '/backup/create', '/backup/manual_backup'], requirePermission('settings.edit'), async (req, res) => {
   try {
     const db = await getPool();
     const [tables] = await db.query('SHOW TABLES');
@@ -102,9 +102,9 @@ router.post(['/create', '/create.php', '/manual_backup', '/manual_backup.php'], 
 });
 
 // ============================================================
-// GET/POST /backup/download (.php) / download_backup (.php)
+// GET/POST /backup/download & /backup/download_backup
 // ============================================================
-router.all(['/download', '/download.php', '/download_backup', '/download_backup.php'], (req, res) => {
+router.all(['/download', '/download_backup', '/backup/download', '/backup/download_backup'], (req, res) => {
   const fileName = String(req.query.file_name || req.body.file_name || '').trim();
   if (!fileName) {
     return res.status(400).json({ success: false, message: 'File name is required.' });
@@ -119,9 +119,9 @@ router.all(['/download', '/download.php', '/download_backup', '/download_backup.
 });
 
 // ============================================================
-// POST /backup/restore (.php) / restore_backup (.php)
+// POST /backup/restore & /backup/restore_backup
 // ============================================================
-router.post(['/restore', '/restore.php', '/restore_backup', '/restore_backup.php'], requirePermission('settings.edit'), async (req, res) => {
+router.post(['/restore', '/restore_backup', '/backup/restore', '/backup/restore_backup'], requirePermission('settings.edit'), async (req, res) => {
   const fileName = String(req.body.file_name || req.query.file_name || '').trim();
   if (!fileName) {
     return res.status(400).json({ success: false, message: 'File name is required.' });

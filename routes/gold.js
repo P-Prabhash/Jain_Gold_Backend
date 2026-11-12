@@ -5,9 +5,9 @@ const { requirePermission } = require('../middleware/authMiddleware');
 const { formatPhotoUrl } = require('../utils/imageHelper');
 
 // ============================================================
-// GET /gold/list (.php)
+// GET /gold/list
 // ============================================================
-router.get(['/list', '/list.php'], requirePermission('gold.view'), async (req, res) => {
+router.get(['/list', '/gold/list'], requirePermission('gold.view'), async (req, res) => {
   const customerId = parseInt(req.query.customer_id || '0', 10);
   const statusFilter = String(req.query.status || '').trim().toUpperCase();
   const search = String(req.query.search || '').trim();
@@ -70,9 +70,9 @@ router.get(['/list', '/list.php'], requirePermission('gold.view'), async (req, r
 });
 
 // ============================================================
-// POST /gold/create (.php) & /gold/add (.php)
+// POST /gold/create & /gold/add
 // ============================================================
-router.post(['/create', '/create.php', '/add', '/add.php'], requirePermission('gold.create'), async (req, res) => {
+router.post(['/create', '/add', '/gold/create', '/gold/add'], requirePermission('gold.create'), async (req, res) => {
   const customerId = parseInt(req.body.customer_id || '0', 10);
   const itemName = String(req.body.item_name || '').trim();
   const purity = String(req.body.purity || '22K').trim();
@@ -102,7 +102,7 @@ router.post(['/create', '/create.php', '/add', '/add.php'], requirePermission('g
       return res.status(404).json({ success: false, message: 'Customer not found.' });
     }
 
-    // Deduplication check: check if same item with customer_id, item_name, weight was inserted in last 10s
+    // Deduplication check
     const [recentDup] = await db.query(
       `SELECT * FROM gold_items WHERE customer_id = ? AND LOWER(item_name) = LOWER(?) AND ABS(weight - ?) < 0.001 AND created_at >= NOW() - INTERVAL 10 SECOND LIMIT 1`,
       [customerId, itemName, weight]
@@ -136,9 +136,9 @@ router.post(['/create', '/create.php', '/add', '/add.php'], requirePermission('g
 });
 
 // ============================================================
-// POST/PUT /gold/update (.php)
+// POST/PUT /gold/update
 // ============================================================
-router.post(['/update', '/update.php'], requirePermission('gold.edit'), async (req, res) => {
+router.post(['/update', '/gold/update'], requirePermission('gold.edit'), async (req, res) => {
   const id = parseInt(req.body.id || '0', 10);
   const itemName = String(req.body.item_name || '').trim();
   const purity = String(req.body.purity || '').trim();
@@ -177,9 +177,9 @@ router.post(['/update', '/update.php'], requirePermission('gold.edit'), async (r
 });
 
 // ============================================================
-// GET /gold/available_for_additional (.php)
+// GET /gold/available_for_additional
 // ============================================================
-router.get(['/available_for_additional', '/available_for_additional.php'], requirePermission('loan.view'), async (req, res) => {
+router.get(['/available_for_additional', '/gold/available_for_additional'], requirePermission('loan.view'), async (req, res) => {
   const customerId = parseInt(req.query.customer_id || '0', 10);
   if (customerId <= 0) {
     return res.status(400).json({ success: false, message: 'Customer ID is required.' });

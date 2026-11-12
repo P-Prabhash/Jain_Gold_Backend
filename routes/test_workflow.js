@@ -3,9 +3,9 @@ const router = express.Router();
 const { getPool } = require('../config/database');
 
 // ============================================================
-// GET /test_workflow (.php)
+// GET /test_workflow
 // ============================================================
-router.get(['/', '/test_workflow', '/test_workflow.php'], async (req, res) => {
+router.get(['/', '/test_workflow'], async (req, res) => {
   try {
     const db = await getPool();
     const [tables] = await db.query('SHOW TABLES');
@@ -13,7 +13,6 @@ router.get(['/', '/test_workflow', '/test_workflow.php'], async (req, res) => {
     return res.json({
       success: true,
       message: 'Node.js Backend Workflow Operational Test Passed.',
-      database: 'backend_api',
       tables_count: tables.length
     });
   } catch (err) {

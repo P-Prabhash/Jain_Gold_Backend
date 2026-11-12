@@ -4,9 +4,9 @@ const { getPool } = require('../config/database');
 const { requirePermission } = require('../middleware/authMiddleware');
 
 // ============================================================
-// GET /payments/list (.php)
+// GET /payments/list
 // ============================================================
-router.get(['/list', '/list.php'], requirePermission('payment.view'), async (req, res) => {
+router.get(['/list', '/payments/list'], requirePermission('payment.view'), async (req, res) => {
   const loanId = parseInt(req.query.loan_id || '0', 10);
   const customerId = parseInt(req.query.customer_id || '0', 10);
   const search = String(req.query.search || '').trim();
@@ -53,9 +53,9 @@ router.get(['/list', '/list.php'], requirePermission('payment.view'), async (req
 });
 
 // ============================================================
-// POST /payments/create (.php)
+// POST /payments/create
 // ============================================================
-router.post(['/create', '/create.php'], requirePermission('payment.create'), async (req, res) => {
+router.post(['/create', '/payments/create'], requirePermission('payment.create'), async (req, res) => {
   const loanId = parseInt(req.body.loan_id || '0', 10);
   const principalPayment = parseFloat(req.body.principal_payment || req.body.principal_payment_amount || req.body.amount || '0');
   const manualInterest = parseFloat(req.body.manual_interest || req.body.manual_interest_amount || '0');

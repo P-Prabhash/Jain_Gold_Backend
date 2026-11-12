@@ -5,9 +5,9 @@ const { getPool } = require('../config/database');
 const { authenticate, requirePermission } = require('../middleware/authMiddleware');
 
 // ============================================================
-// GET /users/search (.php) & /users/list (.php)
+// GET /users/search & /users/list
 // ============================================================
-router.get(['/search', '/search.php', '/list', '/list.php'], requirePermission('user.view'), async (req, res) => {
+router.get(['/search', '/list', '/users/search', '/users/list'], requirePermission('user.view'), async (req, res) => {
   const search = String(req.query.search || req.query.query || '').trim();
   const status = String(req.query.status || '').trim().toUpperCase();
   const role = String(req.query.role || '').trim().toUpperCase();
@@ -98,9 +98,9 @@ router.get(['/search', '/search.php', '/list', '/list.php'], requirePermission('
 });
 
 // ============================================================
-// GET /users/get (.php)
+// GET /users/get
 // ============================================================
-router.get(['/get', '/get.php'], requirePermission('user.view'), async (req, res) => {
+router.get(['/get', '/users/get'], requirePermission('user.view'), async (req, res) => {
   const userId = parseInt(req.query.user_id || req.query.id || '0', 10);
   if (userId <= 0) {
     return res.status(400).json({ success: false, message: 'User ID is required' });
@@ -151,9 +151,9 @@ router.get(['/get', '/get.php'], requirePermission('user.view'), async (req, res
 });
 
 // ============================================================
-// POST /users/create (.php)
+// POST /users/create
 // ============================================================
-router.post(['/create', '/create.php'], requirePermission('user.create'), async (req, res) => {
+router.post(['/create', '/users/create'], requirePermission('user.create'), async (req, res) => {
   const username = String(req.body.username || '').trim();
   const password = String(req.body.password || '');
   const fullName = String(req.body.full_name || req.body.fullName || '').trim();
@@ -209,9 +209,9 @@ router.post(['/create', '/create.php'], requirePermission('user.create'), async 
 });
 
 // ============================================================
-// POST/PUT /users/update (.php)
+// POST/PUT /users/update
 // ============================================================
-router.post(['/update', '/update.php'], requirePermission('user.edit'), async (req, res) => {
+router.post(['/update', '/users/update'], requirePermission('user.edit'), async (req, res) => {
   const id = parseInt(req.body.id || req.body.user_id || '0', 10);
   const fullName = String(req.body.full_name || req.body.fullName || '').trim();
   const mobile = String(req.body.mobile || '').trim();
@@ -245,9 +245,9 @@ router.post(['/update', '/update.php'], requirePermission('user.edit'), async (r
 });
 
 // ============================================================
-// POST /users/delete (.php)
+// POST /users/delete
 // ============================================================
-router.post(['/delete', '/delete.php'], requirePermission('user.delete'), async (req, res) => {
+router.post(['/delete', '/users/delete'], requirePermission('user.delete'), async (req, res) => {
   const id = parseInt(req.body.id || req.query.id || req.body.user_id || '0', 10);
   if (id <= 0) {
     return res.status(400).json({ success: false, message: 'User ID is required' });
@@ -290,9 +290,9 @@ router.post(['/delete', '/delete.php'], requirePermission('user.delete'), async 
 });
 
 // ============================================================
-// GET /users/get_permissions (.php) / permissions (.php)
+// GET /users/get_permissions & /users/permissions
 // ============================================================
-router.get(['/get_permissions', '/get_permissions.php', '/permissions', '/permissions.php', '/get_user_permissions', '/get_user_permissions.php'], authenticate, async (req, res) => {
+router.get(['/get_permissions', '/permissions', '/get_user_permissions', '/users/get_permissions', '/users/permissions'], authenticate, async (req, res) => {
   const queryUserId = req.query.user_id || req.query.id || req.body.user_id;
   const userId = queryUserId ? parseInt(queryUserId, 10) : (req.user ? req.user.id : 0);
 
@@ -349,9 +349,9 @@ router.get(['/get_permissions', '/get_permissions.php', '/permissions', '/permis
 });
 
 // ============================================================
-// POST /users/update_permissions (.php)
+// POST /users/update_permissions
 // ============================================================
-router.post(['/update_permissions', '/update_permissions.php'], authenticate, async (req, res) => {
+router.post(['/update_permissions', '/users/update_permissions'], authenticate, async (req, res) => {
   const userId = parseInt(req.body.user_id || '0', 10);
   const permissions = req.body.permissions || req.body.permission_codes || [];
 
@@ -422,9 +422,9 @@ router.post(['/update_permissions', '/update_permissions.php'], authenticate, as
 });
 
 // ============================================================
-// GET /users/get_roles (.php) / roles (.php)
+// GET /users/get_roles & /users/roles
 // ============================================================
-router.get(['/get_roles', '/get_roles.php', '/roles', '/roles.php'], requirePermission('user.manage_roles'), async (req, res) => {
+router.get(['/get_roles', '/roles', '/users/get_roles', '/users/roles'], requirePermission('user.manage_roles'), async (req, res) => {
   try {
     const db = await getPool();
     const [roles] = await db.query('SELECT * FROM roles ORDER BY id ASC');
@@ -446,9 +446,9 @@ router.get(['/get_roles', '/get_roles.php', '/roles', '/roles.php'], requirePerm
 });
 
 // ============================================================
-// POST /users/reset_password (.php)
+// POST /users/reset_password
 // ============================================================
-router.post(['/reset_password', '/reset_password.php'], requirePermission('user.reset_password'), async (req, res) => {
+router.post(['/reset_password', '/users/reset_password'], requirePermission('user.reset_password'), async (req, res) => {
   const userId = parseInt(req.body.user_id || '0', 10);
   const newPassword = String(req.body.new_password || req.body.password || '').trim();
 
@@ -461,7 +461,7 @@ router.post(['/reset_password', '/reset_password.php'], requirePermission('user.
     const hash = bcrypt.hashSync(newPassword, 10);
     await db.query('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [hash, userId]);
 
-    // Record Audit Log without storing plaintext password
+    // Record Audit Log
     try {
       const [u] = await db.query('SELECT username FROM users WHERE id = ?', [userId]);
       const targetName = u.length > 0 ? u[0].username : `User #${userId}`;
@@ -481,9 +481,9 @@ router.post(['/reset_password', '/reset_password.php'], requirePermission('user.
 });
 
 // ============================================================
-// POST /users/toggle_status (.php)
+// POST /users/toggle_status
 // ============================================================
-router.post(['/toggle_status', '/toggle_status.php'], requirePermission('user.edit'), async (req, res) => {
+router.post(['/toggle_status', '/users/toggle_status'], requirePermission('user.edit'), async (req, res) => {
   const userId = parseInt(req.body.user_id || '0', 10);
   const status = String(req.body.status || '').trim().toUpperCase();
 
@@ -502,9 +502,9 @@ router.post(['/toggle_status', '/toggle_status.php'], requirePermission('user.ed
 });
 
 // ============================================================
-// POST /users/update_admin_credentials (.php)
+// POST /users/update_admin_credentials
 // ============================================================
-router.post(['/update_admin_credentials', '/update_admin_credentials.php'], requirePermission('settings.edit'), async (req, res) => {
+router.post(['/update_admin_credentials', '/users/update_admin_credentials'], requirePermission('settings.edit'), async (req, res) => {
   const currentPassword = String(req.body.current_password || req.body.currentPassword || req.body.old_password || req.body.oldPassword || '').trim();
   const newUsername = String(req.body.new_username || req.body.newUsername || req.body.username || '').trim();
   const newPassword = String(req.body.new_password || req.body.newPassword || req.body.password || '').trim();
@@ -599,17 +599,6 @@ router.post(['/update_admin_credentials', '/update_admin_credentials.php'], requ
     return res.json({
       success: true,
       message: 'ADMIN credentials updated successfully. Please log in with your new credentials.',
-      token: newToken,
-      user: updatedUserPayload,
-      data: {
-        token: newToken,
-        user: updatedUserPayload
-      }
-    });
-
-    return res.json({
-      success: true,
-      message: 'ADMIN credentials updated successfully.',
       token: newToken,
       user: updatedUserPayload,
       data: {

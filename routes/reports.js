@@ -4,9 +4,9 @@ const { getPool } = require('../config/database');
 const { requirePermission } = require('../middleware/authMiddleware');
 
 // ============================================================
-// GET /reports/summary (.php)
+// GET /reports/summary
 // ============================================================
-router.get(['/summary', '/summary.php'], requirePermission('report.view'), async (req, res) => {
+router.get(['/summary', '/reports/summary'], requirePermission('report.view'), async (req, res) => {
   const startDate = String(req.query.start_date || '').trim();
   const endDate = String(req.query.end_date || '').trim();
 

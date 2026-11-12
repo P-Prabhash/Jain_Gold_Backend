@@ -3,9 +3,9 @@ const router = express.Router();
 const { getPool } = require('../config/database');
 
 // ============================================================
-// GET/POST /seed (.php)
+// GET/POST /seed
 // ============================================================
-router.all(['/', '/seed', '/seed.php'], async (req, res) => {
+router.all(['/', '/seed'], async (req, res) => {
   try {
     const db = await getPool();
     const [custRows] = await db.query('SELECT COUNT(*) AS cnt FROM customers');
@@ -20,7 +20,7 @@ router.all(['/', '/seed', '/seed.php'], async (req, res) => {
           <h1>Gold & Silver Pawn ERP</h1>
           <h2>Database Status Check</h2>
           <p style="color: green; font-weight: bold;">✓ Node.js & MySQL Database Connection Successful.</p>
-          <p><strong>Database Name:</strong> backend_api</p>
+          <p><strong>Database Name:</strong> defaultdb</p>
           <p><strong>Total Customers:</strong> ${custRows[0].cnt}</p>
           <p><strong>Total Loans:</strong> ${loanRows[0].cnt}</p>
         </div>

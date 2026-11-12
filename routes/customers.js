@@ -5,9 +5,9 @@ const { requirePermission } = require('../middleware/authMiddleware');
 const { formatPhotoUrl } = require('../utils/imageHelper');
 
 // ============================================================
-// GET /customers/list (.php)
+// GET /customers/list
 // ============================================================
-router.get(['/list', '/list.php'], requirePermission('customer.view'), async (req, res) => {
+router.get(['/list', '/customers/list'], requirePermission('customer.view'), async (req, res) => {
   const search = String(req.query.search || '').trim();
 
   try {
@@ -75,9 +75,9 @@ router.get(['/list', '/list.php'], requirePermission('customer.view'), async (re
 });
 
 // ============================================================
-// GET /customers/get (.php)
+// GET /customers/get
 // ============================================================
-router.get(['/get', '/get.php'], requirePermission('customer.view'), async (req, res) => {
+router.get(['/get', '/customers/get'], requirePermission('customer.view'), async (req, res) => {
   const id = parseInt(req.query.id || '0', 10);
   if (id <= 0) {
     return res.status(400).json({ success: false, message: 'Valid customer ID is required' });
@@ -199,9 +199,9 @@ router.get(['/get', '/get.php'], requirePermission('customer.view'), async (req,
 });
 
 // ============================================================
-// POST /customers/create (.php)
+// POST /customers/create
 // ============================================================
-router.post(['/create', '/create.php'], requirePermission('customer.create'), async (req, res) => {
+router.post(['/create', '/customers/create'], requirePermission('customer.create'), async (req, res) => {
   const name = String(req.body.name || '').trim();
   const mobile = String(req.body.mobile || '').trim();
   const address = String(req.body.address || '').trim();
@@ -255,9 +255,9 @@ router.post(['/create', '/create.php'], requirePermission('customer.create'), as
 });
 
 // ============================================================
-// POST/PUT /customers/update (.php)
+// POST/PUT /customers/update
 // ============================================================
-router.post(['/update', '/update.php'], requirePermission('customer.edit'), async (req, res) => {
+router.post(['/update', '/customers/update'], requirePermission('customer.edit'), async (req, res) => {
   const id = parseInt(req.body.id || '0', 10);
   const name = String(req.body.name || '').trim();
   const mobile = String(req.body.mobile || '').trim();
@@ -302,9 +302,9 @@ router.post(['/update', '/update.php'], requirePermission('customer.edit'), asyn
 });
 
 // ============================================================
-// GET /customers/search_additional (.php)
+// GET /customers/search_additional
 // ============================================================
-router.get(['/search_additional', '/search_additional.php'], requirePermission('loan.view'), async (req, res) => {
+router.get(['/search_additional', '/customers/search_additional'], requirePermission('loan.view'), async (req, res) => {
   const queryParam = String(req.query.search || req.query.q || req.query.query || '').trim();
 
   try {

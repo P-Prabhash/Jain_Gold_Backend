@@ -4,9 +4,9 @@ const { getPool } = require('../config/database');
 const { requirePermission } = require('../middleware/authMiddleware');
 
 // ============================================================
-// GET /transactions/ledger (.php)
+// GET /transactions/ledger
 // ============================================================
-router.get(['/ledger', '/ledger.php'], requirePermission('loan.view'), async (req, res) => {
+router.get(['/ledger', '/transactions/ledger'], requirePermission('loan.view'), async (req, res) => {
   const loanId = parseInt(req.query.loan_id || '0', 10);
   const customerId = parseInt(req.query.customer_id || '0', 10);
   const search = String(req.query.search || '').trim();

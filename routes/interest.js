@@ -3,9 +3,9 @@ const router = express.Router();
 const { requirePermission } = require('../middleware/authMiddleware');
 
 // ============================================================
-// POST or GET /interest/calculate (.php)
+// POST or GET /interest/calculate
 // ============================================================
-router.all(['/calculate', '/calculate.php'], requirePermission('loan.view'), async (req, res) => {
+router.all(['/calculate', '/interest/calculate'], requirePermission('loan.view'), async (req, res) => {
   const input = { ...req.query, ...req.body };
 
   const principal = parseFloat(input.principal || '0');

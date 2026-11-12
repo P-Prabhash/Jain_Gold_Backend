@@ -146,13 +146,13 @@ function enrichReceiptPayload(req, data, loan, customer, payment, collateral) {
 }
 
 // ============================================================
-// GET /receipts/get (.php) & GET /receipts/:receiptId
+// GET /receipts/get & GET /receipts/:receiptId
 // ============================================================
-router.get(['/get', '/get.php', '/:receiptId'], requirePermission('receipt.view'), async (req, res) => {
+router.get(['/get', '/receipts/get', '/:receiptId'], requirePermission('receipt.view'), async (req, res) => {
   const paramId = req.params.receiptId ? String(req.params.receiptId).trim() : '';
   let receiptNo = String(req.query.receipt_no || req.query.no || '').trim();
 
-  if (!receiptNo && paramId && paramId !== 'get' && paramId !== 'get.php') {
+  if (!receiptNo && paramId && paramId !== 'get') {
     receiptNo = paramId;
   }
 

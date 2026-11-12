@@ -27,7 +27,7 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // ============================================================
-// URL NORMALIZER FOR PHP EXTENSION & PATH ALIASES
+// URL NORMALIZER FOR PATH ALIASES
 // ============================================================
 app.use((req, res, next) => {
   let url = req.url;
@@ -83,14 +83,9 @@ const docsRoutes = require('./routes/docs');
 app.all([
   '/auth/resend-otp',
   '/auth/resend_otp',
-  '/auth/resend-otp.php',
-  '/auth/resend_otp.php',
   '/api/auth/resend-otp',
   '/api/auth/resend_otp',
-  '/api/auth/resend-otp.php',
-  '/api/auth/resend_otp.php',
-  '/resend-otp',
-  '/resend-otp.php'
+  '/resend-otp'
 ], (req, res, next) => {
   req.url = '/resend-otp';
   return authRoutes(req, res, next);
@@ -99,14 +94,9 @@ app.all([
 app.all([
   '/auth/verify-otp',
   '/auth/verify_otp',
-  '/auth/verify-otp.php',
-  '/auth/verify_otp.php',
   '/api/auth/verify-otp',
   '/api/auth/verify_otp',
-  '/api/auth/verify-otp.php',
-  '/api/auth/verify_otp.php',
-  '/verify-otp',
-  '/verify-otp.php'
+  '/verify-otp'
 ], (req, res, next) => {
   req.url = '/verify-otp';
   return authRoutes(req, res, next);
@@ -114,21 +104,17 @@ app.all([
 
 app.all([
   '/auth/login',
-  '/auth/login.php',
   '/api/auth/login',
-  '/api/auth/login.php',
-  '/login',
-  '/login.php'
+  '/login'
 ], (req, res, next) => {
   req.url = '/login';
   return authRoutes(req, res, next);
 });
 
-app.use(['/api/auth', '/auth', '/auth.php'], authRoutes);
-app.use('/', authRoutes);
+app.use(['/api/auth', '/auth'], authRoutes);
 app.use('/customers', customerRoutes);
 app.use('/dashboard', dashboardRoutes);
-app.use(['/gold', '/gold.php'], goldRoutes);
+app.use('/gold', goldRoutes);
 app.use('/interest', interestRoutes);
 app.use('/loans', loanRoutes);
 app.use('/payments', paymentRoutes);
@@ -138,10 +124,10 @@ app.use('/reports', reportRoutes);
 app.use('/transactions', transactionRoutes);
 app.use('/users', userRoutes);
 app.use('/settings', settingsRoutes);
-app.use(['/upload', '/upload.php'], uploadRoutes);
+app.use('/upload', uploadRoutes);
 app.use('/backup', backupRoutes);
-app.use(['/seed', '/seed.php'], seedRoutes);
-app.use(['/test_workflow', '/test_workflow.php'], testWorkflowRoutes);
+app.use('/seed', seedRoutes);
+app.use('/test_workflow', testWorkflowRoutes);
 app.use(['/api-docs', '/docs', '/swagger.json'], docsRoutes);
 
 // Health check endpoint

@@ -4,9 +4,9 @@ const { getPool } = require('../config/database');
 const { requirePermission } = require('../middleware/authMiddleware');
 
 // ============================================================
-// GET /dashboard/summary (.php)
+// GET /dashboard/summary
 // ============================================================
-router.get(['/summary', '/summary.php'], requirePermission('dashboard.view'), async (req, res) => {
+router.get(['/summary', '/dashboard/summary'], requirePermission('dashboard.view'), async (req, res) => {
   try {
     const db = await getPool();
 

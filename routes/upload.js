@@ -7,9 +7,9 @@ const { authenticate } = require('../middleware/authMiddleware');
 const { formatPhotoUrl } = require('../utils/imageHelper');
 
 // ============================================================
-// POST /upload (.php) /upload.php
+// POST /upload & /upload/image
 // ============================================================
-router.post(['/', '/upload.php', '/image', '/image.php'], authenticate, (req, res, next) => {
+router.post(['/', '/image', '/upload', '/upload/image'], authenticate, (req, res, next) => {
   upload.any()(req, res, (err) => {
     if (err) {
       console.warn('[UPLOAD WARNING]', err.message);
