@@ -27,7 +27,7 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // ============================================================
-// URL NORMALIZER FOR PATH ALIASES
+// URL NORMALIZER FOR PATH ALIASES & PHP EXTENSIONS
 // ============================================================
 app.use((req, res, next) => {
   let url = req.url;
@@ -37,6 +37,11 @@ app.use((req, res, next) => {
     url = url.substring('/gold_pawn_erp/backend'.length);
   } else if (url.startsWith('/backend')) {
     url = url.substring('/backend'.length);
+  }
+
+  // Seamlessly strip trailing .php extension if present in path
+  if (url.includes('.php')) {
+    url = url.replace(/\.php(\?|$)/, '$1');
   }
 
   // Handle empty or root
@@ -95,9 +100,12 @@ const centralLedgerRoutes = require('./routes/centralLedger');
 app.all([
   '/auth/resend-otp',
   '/auth/resend_otp',
+  '/auth/resend-otp.php',
+  '/auth/resend_otp.php',
   '/api/auth/resend-otp',
   '/api/auth/resend_otp',
-  '/resend-otp'
+  '/resend-otp',
+  '/resend-otp.php'
 ], (req, res, next) => {
   req.url = '/resend-otp';
   return authRoutes(req, res, next);
@@ -106,9 +114,12 @@ app.all([
 app.all([
   '/auth/verify-otp',
   '/auth/verify_otp',
+  '/auth/verify-otp.php',
+  '/auth/verify_otp.php',
   '/api/auth/verify-otp',
   '/api/auth/verify_otp',
-  '/verify-otp'
+  '/verify-otp',
+  '/verify-otp.php'
 ], (req, res, next) => {
   req.url = '/verify-otp';
   return authRoutes(req, res, next);
@@ -116,31 +127,34 @@ app.all([
 
 app.all([
   '/auth/login',
+  '/auth/login.php',
   '/api/auth/login',
-  '/login'
+  '/api/auth/login.php',
+  '/login',
+  '/login.php'
 ], (req, res, next) => {
   req.url = '/login';
   return authRoutes(req, res, next);
 });
 
-app.use(['/api/auth', '/auth'], authRoutes);
+app.use(['/api/auth', '/auth', '/auth.php'], authRoutes);
 app.use(['/api/central-ledger', '/central-ledger', '/api/central_ledger', '/central_ledger'], centralLedgerRoutes);
-app.use(['/api/customers', '/customers'], customerRoutes);
-app.use(['/api/dashboard', '/dashboard'], dashboardRoutes);
-app.use(['/api/gold', '/gold'], goldRoutes);
-app.use(['/api/interest', '/interest'], interestRoutes);
-app.use(['/api/loans', '/loans'], loanRoutes);
-app.use(['/api/payments', '/payments'], paymentRoutes);
-app.use(['/api/receipts', '/receipts'], receiptRoutes);
-app.use(['/api/releases', '/releases'], releaseRoutes);
-app.use(['/api/reports', '/reports'], reportRoutes);
-app.use(['/api/transactions', '/transactions'], transactionRoutes);
-app.use(['/api/users', '/users'], userRoutes);
-app.use(['/api/settings', '/settings'], settingsRoutes);
-app.use(['/api/upload', '/upload'], uploadRoutes);
-app.use(['/api/backup', '/backup'], backupRoutes);
-app.use(['/api/seed', '/seed'], seedRoutes);
-app.use(['/api/test_workflow', '/test_workflow'], testWorkflowRoutes);
+app.use(['/api/customers', '/customers', '/customers.php'], customerRoutes);
+app.use(['/api/dashboard', '/dashboard', '/dashboard.php'], dashboardRoutes);
+app.use(['/api/gold', '/gold', '/gold.php'], goldRoutes);
+app.use(['/api/interest', '/interest', '/interest.php'], interestRoutes);
+app.use(['/api/loans', '/loans', '/loans.php'], loanRoutes);
+app.use(['/api/payments', '/payments', '/payments.php'], paymentRoutes);
+app.use(['/api/receipts', '/receipts', '/receipts.php'], receiptRoutes);
+app.use(['/api/releases', '/releases', '/releases.php'], releaseRoutes);
+app.use(['/api/reports', '/reports', '/reports.php'], reportRoutes);
+app.use(['/api/transactions', '/transactions', '/transactions.php'], transactionRoutes);
+app.use(['/api/users', '/users', '/users.php'], userRoutes);
+app.use(['/api/settings', '/settings', '/settings.php'], settingsRoutes);
+app.use(['/api/upload', '/upload', '/upload.php'], uploadRoutes);
+app.use(['/api/backup', '/backup', '/backup.php'], backupRoutes);
+app.use(['/api/seed', '/seed', '/seed.php'], seedRoutes);
+app.use(['/api/test_workflow', '/test_workflow', '/test_workflow.php'], testWorkflowRoutes);
 app.use(['/api-docs', '/docs', '/swagger.json'], docsRoutes);
 
 // Health check endpoint
@@ -180,7 +194,7 @@ process.on('unhandledRejection', (reason) => {
 });
 
 // Start Server
-app.listen(PORT, async () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`============================================================`);
   console.log(` Gold Pawn ERP Node.js Backend Server Running `);
   console.log(` Port: ${PORT}`);
