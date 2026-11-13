@@ -195,31 +195,21 @@ class GoldPawnERPApp extends StatelessWidget {
       child: MaterialApp(
         navigatorKey: GoldPawnERPApp.navigatorKey,
         title: 'Gold & Silver Pawn Loan ERP',
-
         debugShowCheckedModeBanner: false,
-
         theme: AppTheme.lightTheme,
-
-        // ============================================================
-        // FIRST SCREEN
-        // ============================================================
-        //
-        // Opens the Animated 5-second SplashScreen on app launch.
-        //
-        // ============================================================
-
-        home: const SplashScreen(),
-
-        // ============================================================
-        // APPLICATION ROUTES
-        // ============================================================
-
+        initialRoute: '/splash',
         routes: {
+          '/': (context) => const SplashScreen(),
           '/splash': (context) => const SplashScreen(),
           '/main': (context) => const MainScreen(),
           '/login': (context) => const LoginScreen(),
           '/startup': (context) => const StartupScreen(),
           '/admin_registration': (context) => const AdminRegistrationScreen(),
+        },
+        onUnknownRoute: (settings) {
+          return MaterialPageRoute(
+            builder: (_) => const SplashScreen(),
+          );
         },
       ),
     );
