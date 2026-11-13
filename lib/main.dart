@@ -108,6 +108,8 @@ void main() {
 // ============================================================================
 
 class GoldPawnERPApp extends StatelessWidget {
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
   const GoldPawnERPApp({
     super.key,
   });
@@ -191,6 +193,7 @@ class GoldPawnERPApp extends StatelessWidget {
       ],
 
       child: MaterialApp(
+        navigatorKey: GoldPawnERPApp.navigatorKey,
         title: 'Gold & Silver Pawn Loan ERP',
 
         debugShowCheckedModeBanner: false,
