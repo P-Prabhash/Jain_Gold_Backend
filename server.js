@@ -51,9 +51,20 @@ app.use((req, res, next) => {
 // ============================================================
 // STATIC FILE SERVING FOR UPLOADS
 // ============================================================
+const defaultAvatarSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><circle cx="64" cy="64" r="64" fill="#F7E7CE"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="52" font-weight="bold" fill="#AA7C11">C</text></svg>`;
+
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/gold_pawn_erp/backend/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/backend/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Fallback for missing uploads images (Serve default SVG avatar instead of 404)
+app.use(['/uploads', '/gold_pawn_erp/backend/uploads', '/backend/uploads'], (req, res, next) => {
+  if (req.method === 'GET') {
+    res.setHeader('Content-Type', 'image/svg+xml');
+    return res.status(200).send(defaultAvatarSvg);
+  }
+  next();
+});
 
 // ============================================================
 // IMPORT ROUTES
