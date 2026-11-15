@@ -43,6 +43,11 @@ async function runCentralLedgerTests() {
   const staffAToken = createAuthToken(staffAUser);
   const staffBToken = createAuthToken(staffBUser);
 
+  // Clear existing sessions and register active session for admin token in test suite
+  const { createAdminSession } = require('./config/auth');
+  await db.query("UPDATE user_sessions SET status = 'LOGGED_OUT' WHERE user_id = ? AND status = 'ACTIVE'", [adminUser.id]);
+  await createAdminSession(db, { userId: adminUser.id, token: adminToken, deviceInfo: 'Test Runner' });
+
   const adminHeaders = { 'Authorization': 'Bearer ' + adminToken, 'Content-Type': 'application/json' };
   const staffAHeaders = { 'Authorization': 'Bearer ' + staffAToken, 'Content-Type': 'application/json' };
   const staffBHeaders = { 'Authorization': 'Bearer ' + staffBToken, 'Content-Type': 'application/json' };

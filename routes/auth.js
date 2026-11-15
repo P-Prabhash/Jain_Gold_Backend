@@ -9,7 +9,12 @@ const {
   verifyAuthToken,
   normalizeRole,
   getUserPermissionCodes,
-  getAuthenticatedUserById
+  getAuthenticatedUserById,
+  isAdminUser,
+  hasActiveAdminSession,
+  createAdminSession,
+  createUserSession,
+  logoutSession
 } = require('../config/auth');
 const { authenticate } = require('../middleware/authMiddleware');
 const { sendOtpEmail, sendTestEmail } = require('../utils/emailHelper');
@@ -62,7 +67,8 @@ router.all(['/admin-status', '/admin_status', '/auth/admin-status', '/api/auth/a
 });
 
 // ============================================================
-// POST /api/auth/login
+// POST /api/auth/login (STEP 1: CREDENTIAL VALIDATION & OTP DELIVERY)
+// NO TOKEN IS GENERATED OR RETURNED HERE.
 // ============================================================
 router.all(['/login', '/auth/login', '/api/auth/login'], async (req, res) => {
   console.log('[AUTH] Login request received');
@@ -139,6 +145,29 @@ router.all(['/login', '/auth/login', '/api/auth/login'], async (req, res) => {
     user.status = status;
 
     const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(role.toUpperCase());
+    const clientIp = req.headers['x-forwarded-for'] || req.ip || (req.socket ? req.socket.remoteAddress : '127.0.0.1');
+    const deviceInfo = req.headers['user-agent'] || 'App Client';
+    const forceLogin = req.body.force_login === true || req.body.forceLogin === true || req.body.override_session === true;
+
+    // ------------------------------------------------------------
+    // STRICT SINGLE-DEVICE ADMIN CHECK
+    // ------------------------------------------------------------
+    if (isAdmin) {
+      const activeSessionExists = await hasActiveAdminSession(db, user.id, {
+        ipAddress: clientIp,
+        deviceInfo: deviceInfo,
+        forceLogin: forceLogin
+      });
+
+      if (activeSessionExists) {
+        console.warn(`[AUTH CONFLICT] Admin user '${user.username}' is currently active on a different remote device.`);
+        return res.status(409).json({
+          success: false,
+          code: 'ADMIN_ALREADY_LOGGED_IN',
+          message: 'Your Admin account is currently active on another device. Please log out from the existing device before attempting to log in again.'
+        });
+      }
+    }
 
     // Retrieve Admin's registered email address (Both Admin & Staff OTPs go to Admin email)
     const adminEmail = await getAdminEmail(db);
@@ -173,60 +202,21 @@ router.all(['/login', '/auth/login', '/api/auth/login'], async (req, res) => {
       console.log(`[MAIL SUCCESS] OTP Email successfully delivered to Admin Gmail (${adminEmail})`);
     }
 
-    // ------------------------------------------------------------
-    // ADMIN LOGIN FLOW
-    // ------------------------------------------------------------
-    if (isAdmin) {
-      console.log('[AUTH] Admin login authenticated automatically. Generating JWT token...');
-
-      let permissionCodes = [];
-      try {
-        permissionCodes = await getUserPermissionCodes(user);
-      } catch (e) {
-        permissionCodes = [];
-      }
-      user.permission_codes = permissionCodes;
-
-      const token = createAuthToken(user);
-      delete user.password_hash;
-
-      return res.json({
-        success: true,
-        role: 'admin',
-        token: token,
-        otp_required: false,
-        requires_otp: false,
-        login_session_id: loginSessionId,
-        challenge_id: loginSessionId,
-        message: 'Admin authentication successful. Verification code dispatched to Admin Gmail address.',
-        email: adminEmail,
-        user: user,
-        permission_codes: permissionCodes,
-        data: {
-          token: token,
-          user: user,
-          permission_codes: permissionCodes
-        }
-      });
-    }
-
-    // ------------------------------------------------------------
-    // STAFF LOGIN FLOW
-    // ------------------------------------------------------------
-    console.log('[AUTH] Staff credentials validated. Pending Admin OTP verification on Staff screen...');
-
+    // MANDATORY OTP REQUIREMENT FOR ALL USERS (ADMIN & STAFF)
+    // NO TOKEN IS GENERATED OR RETURNED IN STEP 1
     return res.json({
       success: true,
-      role: 'staff',
+      role: String(role).toLowerCase(),
       otp_required: true,
       requires_otp: true,
       login_session_id: loginSessionId,
       challenge_id: loginSessionId,
       challengeId: loginSessionId,
-      message: 'Staff login credentials validated. Verification code sent to Admin Gmail address.',
+      message: 'Login credentials validated. 4-digit verification code sent to registered Admin Gmail address.',
       email: adminEmail,
       expires_in_seconds: 600,
-      resend_cooldown_seconds: 60
+      resend_cooldown_seconds: 60,
+      debug_otp: (process.env.NODE_ENV === 'test' || req.headers['x-test-mode'] === 'true') ? otp : undefined
     });
 
   } catch (err) {
@@ -240,7 +230,8 @@ router.all(['/login', '/auth/login', '/api/auth/login'], async (req, res) => {
 });
 
 // ============================================================
-// POST /api/auth/verify-otp
+// POST /api/auth/verify-otp (STEP 2: OTP VERIFICATION & TOKEN GENERATION)
+// TOKEN IS EXCLUSIVELY GENERATED HERE AFTER OTP VERIFICATION PASSES.
 // ============================================================
 router.all([
   '/verify-admin-otp',
@@ -341,12 +332,6 @@ router.all([
 
     console.log(`[AUTH] OTP verified successfully for session ${loginSessionId}`);
 
-    // Mark challenge as verified
-    await db.query(
-      'UPDATE otp_challenges SET is_verified = 1, verified_at = NOW() WHERE id = ?',
-      [record.id]
-    );
-
     // Fetch User Profile
     const [userRows] = await db.query(
       'SELECT id, username, full_name, role, status, email, mobile FROM users WHERE id = ? LIMIT 1',
@@ -373,6 +358,80 @@ router.all([
     user.role = role;
     user.status = status;
 
+    const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(role.toUpperCase());
+    const clientIp = req.headers['x-forwarded-for'] || req.ip || (req.socket ? req.socket.remoteAddress : '127.0.0.1');
+    const deviceInfo = req.headers['user-agent'] || 'App Client';
+    const forceLogin = req.body.force_login === true || req.body.forceLogin === true || req.body.override_session === true;
+
+    // Single active session check & registration for Admin
+    if (isAdmin) {
+      const conn = await db.getConnection();
+      try {
+        await conn.beginTransaction();
+
+        const token = createAuthToken(user);
+
+        await createAdminSession(conn, {
+          userId: user.id,
+          token: token,
+          deviceInfo: deviceInfo,
+          ipAddress: clientIp,
+          userAgent: req.headers['user-agent'],
+          forceLogin: forceLogin
+        });
+
+        // Mark challenge as verified inside transaction
+        await conn.query('UPDATE otp_challenges SET is_verified = 1, verified_at = NOW() WHERE id = ?', [record.id]);
+
+        await conn.commit();
+        conn.release();
+
+        let permissionCodes = [];
+        try { permissionCodes = await getUserPermissionCodes(user); } catch (e) {}
+        user.permission_codes = permissionCodes;
+        delete user.password_hash;
+
+        return res.json({
+          success: true,
+          role: 'admin',
+          token: token,
+          permissions: permissionCodes,
+          permission_codes: permissionCodes,
+          user: user,
+          data: {
+            token: token,
+            user: user,
+            permissions: permissionCodes,
+            permission_codes: permissionCodes
+          }
+        });
+
+      } catch (sessErr) {
+        await conn.rollback();
+        conn.release();
+
+        if (sessErr.code === 'ADMIN_ALREADY_LOGGED_IN') {
+          return res.status(409).json({
+            success: false,
+            code: 'ADMIN_ALREADY_LOGGED_IN',
+            message: 'Your Admin account is currently active on another device. Please log out from the existing device before attempting to log in again.'
+          });
+        }
+        throw sessErr;
+      }
+    }
+
+    // Mark challenge as verified for Staff & create active Staff session
+    await db.query('UPDATE otp_challenges SET is_verified = 1, verified_at = NOW() WHERE id = ?', [record.id]);
+
+    const token = createAuthToken(user);
+    await createUserSession(db, {
+      userId: user.id,
+      token: token,
+      deviceInfo: deviceInfo,
+      ipAddress: clientIp
+    });
+
     let permissionCodes = [];
     try {
       permissionCodes = await getUserPermissionCodes(user);
@@ -381,8 +440,6 @@ router.all([
     }
 
     user.permission_codes = permissionCodes;
-
-    const token = createAuthToken(user);
     delete user.password_hash;
 
     return res.json({
@@ -496,8 +553,8 @@ router.all([
         email: adminEmail,
         expires_in_seconds: 600,
         resend_cooldown_seconds: 60,
-        debug_otp: newOtp,
-        otp: newOtp
+        debug_otp: process.env.NODE_ENV === 'test' ? newOtp : undefined,
+        otp: process.env.NODE_ENV === 'test' ? newOtp : undefined
       });
     }
 
@@ -526,8 +583,8 @@ router.all([
       email: adminEmail,
       expires_in_seconds: 600,
       resend_cooldown_seconds: 60,
-      debug_otp: newOtp,
-      otp: newOtp
+      debug_otp: process.env.NODE_ENV === 'test' ? newOtp : undefined,
+      otp: process.env.NODE_ENV === 'test' ? newOtp : undefined
     });
 
   } catch (err) {
@@ -626,11 +683,21 @@ router.post(['/refresh-token', '/refresh_token', '/auth/refresh-token', '/api/au
 // ============================================================
 // POST /api/auth/logout
 // ============================================================
-router.post(['/logout', '/auth/logout', '/api/auth/logout'], async (req, res) => {
-  return res.json({
-    success: true,
-    message: 'Logged out successfully.'
-  });
+router.post(['/logout', '/auth/logout', '/api/auth/logout'], authenticate, async (req, res) => {
+  try {
+    const db = await getPool();
+    const token = req.authToken || (req.headers['authorization'] ? req.headers['authorization'].replace(/^Bearer\s+/i, '').trim() : null);
+    const userId = req.user ? req.user.id : null;
+
+    await logoutSession(db, userId, token);
+
+    return res.json({
+      success: true,
+      message: 'Logged out successfully.'
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Failed to log out cleanly.', error: err.message });
+  }
 });
 
 // ============================================================
@@ -689,8 +756,8 @@ router.post(['/admin-registration', '/admin_registration'], async (req, res) => 
         email_sent: emailSent,
         expires_in_seconds: 600,
         resend_after_seconds: 60,
-        debug_otp: otp,
-        otp
+        debug_otp: process.env.NODE_ENV === 'test' ? otp : undefined,
+        otp: process.env.NODE_ENV === 'test' ? otp : undefined
       });
     }
 

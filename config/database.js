@@ -446,7 +446,7 @@ async function ensureSchema(dbPool) {
         last_activity_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         expires_at DATETIME NOT NULL,
         revoked_at DATETIME NULL,
-        status ENUM('ACTIVE', 'EXPIRED', 'REVOKED') NOT NULL DEFAULT 'ACTIVE',
+        status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
         INDEX idx_session_user (user_id),
         INDEX idx_session_status (status),
         CONSTRAINT fk_user_sessions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -710,6 +710,11 @@ async function ensureUserColumns(dbPool) {
         }
       }
     }
+
+    // Ensure User Sessions Table Column Modification
+    try {
+      await dbPool.query("ALTER TABLE user_sessions MODIFY COLUMN status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE'");
+    } catch (e) {}
 
     // Ensure all user accounts have valid registered email address
     try {

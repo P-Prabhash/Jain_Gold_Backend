@@ -3,6 +3,7 @@ const {
   getAuthenticatedUserById,
   getUserPermissionCodes,
   isAdminUser,
+  verifyActiveSession,
   normalizeRole
 } = require('../config/auth');
 
@@ -47,7 +48,18 @@ async function authenticate(req, res, next) {
       });
     }
 
+    // MANDATORY DATABASE ACTIVE SESSION CHECK FOR ALL USERS
+    const isSessionActive = await verifyActiveSession(null, user.id, token);
+    if (!isSessionActive) {
+      return res.status(401).json({
+        success: false,
+        code: 'SESSION_INVALID',
+        message: 'Your session has expired, been logged out, or revoked. Please log in again.'
+      });
+    }
+
     req.user = user;
+    req.authToken = token;
     return next();
   } catch (err) {
     return res.status(500).json({
