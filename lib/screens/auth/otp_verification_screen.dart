@@ -341,7 +341,34 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 20),
+
+          if (widget.debugOtp != null && widget.debugOtp!.trim().isNotEmpty) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppTheme.goldLight,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppTheme.goldPrimary),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.key_outlined, size: 16, color: AppTheme.goldDark),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Verification Code: ${widget.debugOtp}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.darkNavy,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
 
           // 4-DIGIT OTP BOXES (EMPTY FOR INPUT FROM EMAIL INBOX)
           Row(
@@ -469,9 +496,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               _focusNodes[index + 1].requestFocus();
             } else {
               _focusNodes[index].unfocus();
-              if (_otpCode.length == 4) {
-                _verifyOtp();
-              }
             }
           } else {
             if (index > 0) {

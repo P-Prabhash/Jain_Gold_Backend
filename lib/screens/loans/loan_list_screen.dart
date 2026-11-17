@@ -209,6 +209,11 @@ class _LoanListScreenState
   // ============================================================
 
   Future<void> _openNewLoanModal() async {
+    if (widget.onNavigate != null) {
+      widget.onNavigate!(2, initialParams: {'action': 'new_loan'});
+      return;
+    }
+
     final result = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => const CreateNewLoanScreen(),
@@ -225,6 +230,11 @@ class _LoanListScreenState
   // ============================================================
 
   Future<void> _openExistingLoanModal() async {
+    if (widget.onNavigate != null) {
+      widget.onNavigate!(2, initialParams: {'action': 'existing_loan'});
+      return;
+    }
+
     final result = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => const CreateExistingLoanScreen(),
@@ -241,6 +251,11 @@ class _LoanListScreenState
   // ============================================================
 
   Future<void> _openAdditionalLoanModal() async {
+    if (widget.onNavigate != null) {
+      widget.onNavigate!(2, initialParams: {'action': 'additional_loan'});
+      return;
+    }
+
     final result = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => const CreateAdditionalLoanScreen(),

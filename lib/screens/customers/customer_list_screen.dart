@@ -108,6 +108,11 @@ class _CustomerListScreenState
   // ============================================================
 
   void _openNewCustomerModal() async {
+    if (widget.onNavigate != null) {
+      widget.onNavigate!(1, initialParams: {'action': 'new_customer'});
+      return;
+    }
+
     final result = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => const NewCustomerScreen(),

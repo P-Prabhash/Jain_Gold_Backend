@@ -53,6 +53,7 @@ import 'screens/gold/gold_inventory_screen.dart';
 
 import 'screens/loans/close_loan_screen.dart';
 import 'screens/loans/create_additional_loan_screen.dart';
+import 'screens/loans/create_existing_loan_screen.dart';
 import 'screens/loans/create_new_loan_screen.dart';
 import 'screens/loans/loan_list_screen.dart';
 
@@ -108,8 +109,6 @@ void main() {
 // ============================================================================
 
 class GoldPawnERPApp extends StatelessWidget {
-  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-
   const GoldPawnERPApp({
     super.key,
   });
@@ -193,23 +192,32 @@ class GoldPawnERPApp extends StatelessWidget {
       ],
 
       child: MaterialApp(
-        navigatorKey: GoldPawnERPApp.navigatorKey,
         title: 'Gold & Silver Pawn Loan ERP',
+
         debugShowCheckedModeBanner: false,
+
         theme: AppTheme.lightTheme,
-        initialRoute: '/splash',
+
+        // ============================================================
+        // FIRST SCREEN
+        // ============================================================
+        //
+        // Opens the Animated 5-second SplashScreen on app launch.
+        //
+        // ============================================================
+
+        home: const SplashScreen(),
+
+        // ============================================================
+        // APPLICATION ROUTES
+        // ============================================================
+
         routes: {
-          '/': (context) => const SplashScreen(),
           '/splash': (context) => const SplashScreen(),
           '/main': (context) => const MainScreen(),
           '/login': (context) => const LoginScreen(),
           '/startup': (context) => const StartupScreen(),
           '/admin_registration': (context) => const AdminRegistrationScreen(),
-        },
-        onUnknownRoute: (settings) {
-          return MaterialPageRoute(
-            builder: (_) => const SplashScreen(),
-          );
         },
       ),
     );
@@ -231,16 +239,8 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-
-  // ==========================================================================
-  // CURRENT TAB
-  // ==========================================================================
-
   int _currentTabIndex = 0;
-
-  // ==========================================================================
-  // PAGE TITLES
-  // ==========================================================================
+  Widget? _inlineWidget;
 
   final List<String> _titles = [
     'ERP Dashboard & KPIs',
@@ -254,10 +254,6 @@ class _MainScreenState extends State<MainScreen> {
     'ERP Settings & DB Config',
     'User Management',
   ];
-
-  // ==========================================================================
-  // NAVIGATION
-  // ==========================================================================
 
   bool _canAccessTab(int tab) {
     final auth = context.read<AuthProvider>();
@@ -312,52 +308,30 @@ class _MainScreenState extends State<MainScreen> {
       return;
     }
 
+    Widget? inline;
+    if (initialParams != null && initialParams.containsKey('action')) {
+      final action = initialParams['action'];
+      if (action == 'new_customer') {
+        inline = const NewCustomerScreen();
+      } else if (action == 'new_loan') {
+        inline = const CreateNewLoanScreen();
+      } else if (action == 'existing_loan') {
+        inline = const CreateExistingLoanScreen();
+      } else if (action == 'additional_loan') {
+        inline = const CreateAdditionalLoanScreen();
+      } else if (action == 'new_payment') {
+        inline = const PaymentScreen();
+      } else if (action == 'partial_release') {
+        inline = const PartialReleaseScreen();
+      } else if (action == 'close_loan' && initialParams.containsKey('loan_id')) {
+        inline = CloseLoanScreen(loanId: initialParams['loan_id']);
+      }
+    }
+
     setState(() {
       _currentTabIndex = targetTab;
+      _inlineWidget = inline;
     });
-
-    if (initialParams == null) {
-      return;
-    }
-
-    if (!initialParams.containsKey('action')) {
-      return;
-    }
-
-    final action =
-        initialParams['action'];
-
-    WidgetsBinding.instance
-        .addPostFrameCallback(
-      (_) {
-        if (!mounted) {
-          return;
-        }
-
-        // ================================================================
-        // NEW CUSTOMER
-        // ================================================================
-
-        if (action == 'new_customer') {
-          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NewCustomerScreen()));
-        } else if (action == 'new_loan') {
-          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CreateNewLoanScreen()));
-        } else if (action == 'additional_loan') {
-          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CreateAdditionalLoanScreen()));
-        } else if (action == 'new_payment') {
-          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PaymentScreen()));
-        } else if (action == 'partial_release') {
-          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PartialReleaseScreen()));
-        } else if (action == 'close_loan' && initialParams.containsKey('loan_id')) {
-          final loanId = initialParams['loan_id'];
-          Navigator.of(context).push(MaterialPageRoute(builder: (_) => CloseLoanScreen(loanId: loanId)));
-        } else if (action == 'user_management') {
-          setState(() {
-            _currentTabIndex = 9;
-          });
-        }
-      },
-    );
   }
 
   // ==========================================================================
@@ -365,6 +339,10 @@ class _MainScreenState extends State<MainScreen> {
   // ==========================================================================
 
   Widget _buildBody() {
+    if (_inlineWidget != null) {
+      return _inlineWidget!;
+    }
+
     if (!_canAccessTab(_currentTabIndex)) {
       for (int i = 0; i < _titles.length; i++) {
         if (_canAccessTab(i)) {
@@ -473,6 +451,7 @@ class _MainScreenState extends State<MainScreen> {
 
         setState(() {
           _currentTabIndex = idx;
+          _inlineWidget = null;
         });
       },
 
